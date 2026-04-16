@@ -1,7 +1,7 @@
 {
     "name": "Expense Tracker",
     "short_name": "Expenses",
-    "description": "Track daily and monthly expenses with Google Sheets sync",
+    "description": "Track daily and monthly expenses with Google Sheets",
     "start_url": "/",
     "display": "standalone",
     "orientation": "portrait",
@@ -20,14 +20,6 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any maskable"
-        }
-    ],
-    "screenshots": [],
-    "shortcuts": [
-        {
-            "name": "Add Expense",
-            "url": "/?action=add",
-            "icons": [{"src": "/icon-192.png", "sizes": "192x192"}]
         }
     ]
 }
