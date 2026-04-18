@@ -1,413 +1,410 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
- <meta charset="UTF-8">
- <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
- <title>Expense Tracker</title>
- <link rel="manifest" href="/manifest.json">
- <meta name="theme-color" content="#6366f1">
- <meta name="apple-mobile-web-app-capable" content="yes">
- <style>
- *{margin:0;padding:0;box-sizing:border-box}
- :root{
- --primary:#6366f1;--primary-dark:#4f46e5;--primary-light:#e0e7ff;
- --success:#22c55e;--danger:#ef4444;--warning:#f59e0b;
- --bg:#f1f5f9;--card:#ffffff;--text:#1e293b;--text-light:#64748b;
- --border:#e2e8f0;--income:#10b981;--expense:#ef4444;
- }
- body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
- .auth-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}
- .auth-screen.hidden{display:none}
- .auth-logo{font-size:64px;margin-bottom:16px}
- .auth-title{font-size:28px;font-weight:800;margin-bottom:8px}
- .auth-sub{color:var(--text-light);margin-bottom:32px;font-size:14px;line-height:1.5}
- .google-btn{display:flex;align-items:center;gap:12px;padding:14px 32px;background:#fff;border:2px solid var(--border);border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
- .google-btn:hover{border-color:var(--primary);box-shadow:0 4px 16px rgba(99,102,241,0.2)}
- .google-btn:active{transform:scale(0.97)}
- .google-btn img{width:24px;height:24px}
- .auth-status{margin-top:20px;font-size:13px;color:var(--text-light);max-width:350px;word-wrap:break-word}
- .auth-status.error{color:var(--danger)}
- .auth-spinner{width:36px;height:36px;border:3px solid var(--border);border-top:3px solid var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin:20px auto}
- @keyframes spin{to{transform:rotate(360deg)}}
- .loading-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);z-index:9999;align-items:center;justify-content:center;flex-direction:column}
- .loading-overlay.active{display:flex}
- .spinner{width:40px;height:40px;border:4px solid var(--border);border-top:4px solid var(--primary);border-radius:50%;animation:spin .8s linear infinite}
- .loading-text{margin-top:12px;color:var(--text-light);font-size:14px}
- .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-100px);background:#1e293b;color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;z-index:10000;transition:transform .3s;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-width:90%;text-align:center}
- .toast.show{transform:translateX(-50%) translateY(0)}
- .toast.error{background:var(--danger)}
- .toast.success{background:var(--success)}
- .sync-bar{position:fixed;top:0;left:0;right:0;height:3px;background:transparent;z-index:500}
- .sync-bar.syncing{background:linear-gradient(90deg,var(--primary),var(--success),var(--primary));background-size:200% 100%;animation:syncAnim 1.5s ease infinite}
- @keyframes syncAnim{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
- .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);display:flex;justify-content:space-around;padding:6px 0 env(safe-area-inset-bottom,6px);border-top:1px solid var(--border);z-index:100;box-shadow:0 -2px 10px rgba(0,0,0,0.05)}
- .nav-item{display:flex;flex-direction:column;align-items:center;padding:4px 8px;cursor:pointer;color:var(--text-light);font-size:10px;transition:color .2s;border:none;background:none;-webkit-tap-highlight-color:transparent}
- .nav-item.active{color:var(--primary)}
- .nav-item svg{width:22px;height:22px;margin-bottom:2px}
- .app-container{display:none}
- .app-container.active{display:block}
- .screen{display:none;padding:16px;padding-bottom:90px;max-width:600px;margin:0 auto}
- .screen.active{display:block}
- .screen-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-top:8px}
- .screen-title{font-size:22px;font-weight:700}
- .user-info{display:flex;align-items:center;gap:8px}
- .user-avatar{width:32px;height:32px;border-radius:50%;border:2px solid var(--primary)}
- .user-name{font-size:11px;color:var(--text-light);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
- .logout-btn{font-size:10px;color:var(--danger);cursor:pointer;border:none;background:none;padding:2px 4px}
- .refresh-btn{width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:transform .3s}
- .refresh-btn:active{transform:rotate(180deg)}
- .card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid var(--border)}
- .summary-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
- .summary-card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid var(--border)}
- .summary-card.full{grid-column:1/-1}
- .summary-label{font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
- .summary-value{font-size:20px;font-weight:700}
- .summary-value.income{color:var(--income)}
- .summary-value.expense{color:var(--expense)}
- .summary-value.balance{color:var(--primary)}
- .form-group{margin-bottom:12px}
- .form-label{display:block;font-size:12px;font-weight:600;color:var(--text-light);margin-bottom:4px}
- .form-input,.form-select,.form-textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text);background:var(--card);transition:border-color .2s;-webkit-appearance:none}
- .form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(99,102,241,0.1)}
- .form-textarea{resize:vertical;min-height:50px}
- .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
- .type-toggle{display:flex;gap:8px;margin-bottom:14px}
- .type-btn{flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;background:var(--card);cursor:pointer;font-weight:600;font-size:14px;transition:all .2s;text-align:center}
- .type-btn.expense-type.active{border-color:var(--expense);background:#fef2f2;color:var(--expense)}
- .type-btn.income-type.active{border-color:var(--income);background:#f0fdf4;color:var(--income)}
- .btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s}
- .btn-primary{background:var(--primary);color:#fff}
- .btn-primary:hover{background:var(--primary-dark)}
- .btn-primary:disabled{opacity:.6;cursor:not-allowed}
- .btn-cancel{background:var(--border);color:var(--text)}
- .expense-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
- .expense-item:last-child{border-bottom:none}
- .expense-info{flex:1;min-width:0}
- .expense-category{font-weight:600;font-size:13px;margin-bottom:2px}
- .expense-desc{font-size:11px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- .expense-meta{font-size:10px;color:var(--text-light);margin-top:2px}
- .expense-amount{font-weight:700;font-size:14px;margin-left:8px;white-space:nowrap}
- .expense-amount.income{color:var(--income)}
- .expense-amount.expense{color:var(--expense)}
- .expense-actions{display:flex;gap:4px;margin-left:6px}
- .action-btn{width:28px;height:28px;border:none;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;transition:opacity .2s;-webkit-tap-highlight-color:transparent}
- .action-btn:active{opacity:.6}
- .action-btn.edit{background:#eff6ff;color:#3b82f6}
- .action-btn.delete{background:#fef2f2;color:var(--danger)}
- .action-btn.status-toggle{background:#f0fdf4;color:var(--income)}
- .status-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600}
- .status-badge.paid{background:#f0fdf4;color:var(--income)}
- .status-badge.pending{background:#fffbeb;color:var(--warning)}
- .recurring-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;background:#eff6ff;color:#3b82f6;margin-left:4px}
- .date-nav{display:flex;align-items:center;gap:12px;margin-bottom:16px}
- .date-nav-btn{width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;-webkit-tap-highlight-color:transparent}
- .date-nav-label{font-size:16px;font-weight:600;flex:1;text-align:center}
- .tab-row{display:flex;gap:4px;margin-bottom:16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
- .tab-btn{padding:6px 14px;border:1px solid var(--border);border-radius:20px;background:var(--card);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .2s;-webkit-tap-highlight-color:transparent}
- .tab-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
- .category-bar{display:flex;align-items:center;margin-bottom:8px}
- .category-name{width:80px;font-size:11px;font-weight:500;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- .category-bar-fill{flex:1;height:18px;background:var(--border);border-radius:9px;overflow:hidden;margin:0 8px}
- .category-bar-inner{height:100%;border-radius:9px;transition:width .5s ease}
- .category-amount{font-size:11px;font-weight:600;width:70px;text-align:right}
- .result-card{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:12px;padding:20px;margin-top:12px}
- .result-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.2)}
- .result-row:last-child{border-bottom:none}
- .result-label{font-size:12px;opacity:.9}
- .result-value{font-weight:700;font-size:14px}
- .yearly-table{width:100%;border-collapse:collapse}
- .yearly-table th,.yearly-table td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--border);font-size:12px}
- .yearly-table th{font-weight:600;color:var(--text-light);font-size:10px;text-transform:uppercase}
- .bank-card{display:flex;justify-content:space-between;align-items:center}
- .bank-name{font-weight:600;font-size:15px}
- .bank-balance{font-weight:700;font-size:18px;color:var(--primary)}
- .fab{position:fixed;bottom:72px;right:16px;width:52px;height:52px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:26px;cursor:pointer;box-shadow:0 4px 12px rgba(99,102,241,0.4);z-index:50;display:flex;align-items:center;justify-content:center;transition:transform .2s;-webkit-tap-highlight-color:transparent}
- .fab:active{transform:scale(0.9)}
- .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:200;align-items:flex-end;justify-content:center}
- .modal-overlay.active{display:flex}
- .modal{background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:600px;max-height:85vh;overflow-y:auto;animation:slideUp .3s ease}
- @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
- .modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
- .modal-title{font-size:18px;font-weight:700;margin-bottom:16px}
- .modal-actions{display:flex;gap:8px;margin-top:16px}
- .modal-actions .btn{flex:1}
- .empty-state{text-align:center;padding:40px 20px;color:var(--text-light)}
- #google-signin-container{margin-top:20px;min-height:44px}
- /* ── MOBILE FIX: fallback manual sign-in button ── */
- .manual-signin-btn{
-   display:none;margin-top:16px;padding:14px 32px;
-   background:var(--primary);color:#fff;border:none;border-radius:12px;
-   font-size:16px;font-weight:600;cursor:pointer;
-   box-shadow:0 4px 12px rgba(99,102,241,0.3);
-   -webkit-tap-highlight-color:transparent;
- }
- .manual-signin-btn:active{transform:scale(0.97)}
- @media(max-width:380px){.summary-row{grid-template-columns:1fr}.form-row{grid-template-columns:1fr}}
- </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Expense Tracker</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6366f1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--primary:#6366f1;--primary-dark:#4f46e5;--primary-light:#e0e7ff;
+--success:#22c55e;--danger:#ef4444;--warning:#f59e0b;
+--bg:#f1f5f9;--card:#ffffff;--text:#1e293b;--text-light:#64748b;
+--border:#e2e8f0;--income:#10b981;--expense:#ef4444;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.auth-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}
+.auth-screen.hidden{display:none}
+.auth-logo{font-size:64px;margin-bottom:16px}
+.auth-title{font-size:28px;font-weight:800;margin-bottom:8px}
+.auth-sub{color:var(--text-light);margin-bottom:32px;font-size:14px;line-height:1.5}
+.google-btn-manual{display:flex;align-items:center;gap:12px;padding:14px 32px;background:#fff;border:2px solid var(--border);border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 2px 8px rgba(0,0,0,0.08);margin-top:12px}
+.google-btn-manual:hover{border-color:var(--primary);box-shadow:0 4px 16px rgba(99,102,241,0.2)}
+.google-btn-manual:active{transform:scale(0.97)}
+.auth-status{margin-top:20px;font-size:13px;color:var(--text-light);max-width:350px;word-wrap:break-word}
+.auth-status.error{color:var(--danger)}
+.auth-spinner{width:36px;height:36px;border:3px solid var(--border);border-top:3px solid var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin:20px auto;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.retry-btn{margin-top:12px;padding:10px 20px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+.loading-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,0.9);z-index:9999;align-items:center;justify-content:center;flex-direction:column}
+.loading-overlay.active{display:flex}
+.spinner{width:40px;height:40px;border:4px solid var(--border);border-top:4px solid var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+.loading-text{margin-top:12px;color:var(--text-light);font-size:14px}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-100px);background:#1e293b;color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;z-index:10000;transition:transform .3s;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-width:90%;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.error{background:var(--danger)}
+.toast.success{background:var(--success)}
+.sync-bar{position:fixed;top:0;left:0;right:0;height:3px;background:transparent;z-index:500}
+.sync-bar.syncing{background:linear-gradient(90deg,var(--primary),var(--success),var(--primary));background-size:200% 100%;animation:syncAnim 1.5s ease infinite}
+@keyframes syncAnim{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);display:flex;justify-content:space-around;padding:6px 0 env(safe-area-inset-bottom,6px);border-top:1px solid var(--border);z-index:100;box-shadow:0 -2px 10px rgba(0,0,0,0.05)}
+.nav-item{display:flex;flex-direction:column;align-items:center;padding:4px 8px;cursor:pointer;color:var(--text-light);font-size:10px;transition:color .2s;border:none;background:none;-webkit-tap-highlight-color:transparent}
+.nav-item.active{color:var(--primary)}
+.nav-item svg{width:22px;height:22px;margin-bottom:2px}
+.app-container{display:none}
+.app-container.active{display:block}
+.screen{display:none;padding:16px;padding-bottom:90px;max-width:600px;margin:0 auto}
+.screen.active{display:block}
+.screen-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-top:8px}
+.screen-title{font-size:22px;font-weight:700}
+.user-info{display:flex;align-items:center;gap:8px}
+.user-avatar{width:32px;height:32px;border-radius:50%;border:2px solid var(--primary)}
+.user-name{font-size:11px;color:var(--text-light);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logout-btn{font-size:10px;color:var(--danger);cursor:pointer;border:none;background:none;padding:2px 4px}
+.refresh-btn{width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:transform .3s}
+.refresh-btn:active{transform:rotate(180deg)}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid var(--border)}
+.summary-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.summary-card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid var(--border)}
+.summary-card.full{grid-column:1/-1}
+.summary-label{font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.summary-value{font-size:20px;font-weight:700}
+.summary-value.income{color:var(--income)}
+.summary-value.expense{color:var(--expense)}
+.summary-value.balance{color:var(--primary)}
+.form-group{margin-bottom:12px}
+.form-label{display:block;font-size:12px;font-weight:600;color:var(--text-light);margin-bottom:4px}
+.form-input,.form-select,.form-textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text);background:var(--card);transition:border-color .2s;-webkit-appearance:none}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(99,102,241,0.1)}
+.form-textarea{resize:vertical;min-height:50px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.type-toggle{display:flex;gap:8px;margin-bottom:14px}
+.type-btn{flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;background:var(--card);cursor:pointer;font-weight:600;font-size:14px;transition:all .2s;text-align:center}
+.type-btn.expense-type.active{border-color:var(--expense);background:#fef2f2;color:var(--expense)}
+.type-btn.income-type.active{border-color:var(--income);background:#f0fdf4;color:var(--income)}
+.btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed}
+.btn-cancel{background:var(--border);color:var(--text)}
+.expense-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.expense-item:last-child{border-bottom:none}
+.expense-info{flex:1;min-width:0}
+.expense-category{font-weight:600;font-size:13px;margin-bottom:2px}
+.expense-desc{font-size:11px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.expense-meta{font-size:10px;color:var(--text-light);margin-top:2px}
+.expense-amount{font-weight:700;font-size:14px;margin-left:8px;white-space:nowrap}
+.expense-amount.income{color:var(--income)}
+.expense-amount.expense{color:var(--expense)}
+.expense-actions{display:flex;gap:4px;margin-left:6px}
+.action-btn{width:28px;height:28px;border:none;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;transition:opacity .2s;-webkit-tap-highlight-color:transparent}
+.action-btn:active{opacity:.6}
+.action-btn.edit{background:#eff6ff;color:#3b82f6}
+.action-btn.delete{background:#fef2f2;color:var(--danger)}
+.action-btn.status-toggle{background:#f0fdf4;color:var(--income)}
+.status-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600}
+.status-badge.paid{background:#f0fdf4;color:var(--income)}
+.status-badge.pending{background:#fffbeb;color:var(--warning)}
+.recurring-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;background:#eff6ff;color:#3b82f6;margin-left:4px}
+.date-nav{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.date-nav-btn{width:36px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--card);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;-webkit-tap-highlight-color:transparent}
+.date-nav-label{font-size:16px;font-weight:600;flex:1;text-align:center}
+.tab-row{display:flex;gap:4px;margin-bottom:16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab-btn{padding:6px 14px;border:1px solid var(--border);border-radius:20px;background:var(--card);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .2s;-webkit-tap-highlight-color:transparent}
+.tab-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.category-bar{display:flex;align-items:center;margin-bottom:8px}
+.category-name{width:80px;font-size:11px;font-weight:500;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.category-bar-fill{flex:1;height:18px;background:var(--border);border-radius:9px;overflow:hidden;margin:0 8px}
+.category-bar-inner{height:100%;border-radius:9px;transition:width .5s ease}
+.category-amount{font-size:11px;font-weight:600;width:70px;text-align:right}
+.result-card{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:12px;padding:20px;margin-top:12px}
+.result-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.2)}
+.result-row:last-child{border-bottom:none}
+.result-label{font-size:12px;opacity:.9}
+.result-value{font-weight:700;font-size:14px}
+.yearly-table{width:100%;border-collapse:collapse}
+.yearly-table th,.yearly-table td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--border);font-size:12px}
+.yearly-table th{font-weight:600;color:var(--text-light);font-size:10px;text-transform:uppercase}
+.bank-card{display:flex;justify-content:space-between;align-items:center}
+.bank-name{font-weight:600;font-size:15px}
+.bank-balance{font-weight:700;font-size:18px;color:var(--primary)}
+.fab{position:fixed;bottom:72px;right:16px;width:52px;height:52px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:26px;cursor:pointer;box-shadow:0 4px 12px rgba(99,102,241,0.4);z-index:50;display:flex;align-items:center;justify-content:center;transition:transform .2s;-webkit-tap-highlight-color:transparent}
+.fab:active{transform:scale(0.9)}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:200;align-items:flex-end;justify-content:center}
+.modal-overlay.active{display:flex}
+.modal{background:var(--card);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:600px;max-height:85vh;overflow-y:auto;animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:16px}
+.modal-actions{display:flex;gap:8px;margin-top:16px}
+.modal-actions .btn{flex:1}
+.empty-state{text-align:center;padding:40px 20px;color:var(--text-light)}
+#google-signin-container{margin-top:20px;display:flex;justify-content:center;min-height:44px}
+.webview-warning{background:#fef2f2;border:2px solid var(--danger);border-radius:12px;padding:20px;margin-top:20px;text-align:left;max-width:350px}
+.webview-warning h3{color:var(--danger);margin-bottom:10px;font-size:16px}
+.webview-warning p{font-size:13px;line-height:1.5;color:var(--text)}
+@media(max-width:380px){.summary-row{grid-template-columns:1fr}.form-row{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
+
 <!-- AUTH SCREEN -->
 <div class="auth-screen" id="auth-screen">
- <div class="auth-logo">💰</div>
- <h1 class="auth-title">Expense Tracker</h1>
- <p class="auth-sub">Track your daily & monthly expenses.<br>All data saved to your own <strong>"Expense Tracker"</strong> Google Sheet.</p>
- <div id="google-signin-container"></div>
- <!-- MOBILE FIX: Manual button shown if One-Tap fails -->
- <button class="manual-signin-btn" id="manual-signin-btn" onclick="startManualSignIn()">
-   Sign in with Google
- </button>
- <div class="auth-status" id="auth-status"></div>
+<div class="auth-logo">💰</div>
+<h1 class="auth-title">Expense Tracker</h1>
+<p class="auth-sub">Track your daily & monthly expenses.<br>All data saved to your own <strong>"Expense Tracker"</strong> Google Sheet.</p>
+<div id="google-signin-container"></div>
+<div class="auth-status" id="auth-status"><div class="auth-spinner"></div></div>
+<button id="manual-signin-btn" class="google-btn-manual" style="display:none;" onclick="manualSignIn()">
+  <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+  Sign in with Google
+</button>
 </div>
 
 <!-- MAIN APP -->
 <div class="app-container" id="app-container">
- <div class="loading-overlay" id="loading-overlay">
-   <div class="spinner"></div>
-   <div class="loading-text" id="loading-text">Loading...</div>
- </div>
- <div class="sync-bar" id="sync-bar"></div>
- <div class="toast" id="toast"></div>
+<div class="loading-overlay" id="loading-overlay">
+<div class="spinner"></div>
+<div class="loading-text" id="loading-text">Loading...</div>
+</div>
+<div class="sync-bar" id="sync-bar"></div>
+<div class="toast" id="toast"></div>
 
- <!-- DASHBOARD -->
- <div id="screen-dashboard" class="screen active">
-   <div class="screen-header">
-     <h1 class="screen-title">📊 Dashboard</h1>
-     <div style="display:flex;gap:8px;align-items:center;">
-       <div class="user-info" id="user-info">
-         <img class="user-avatar" id="user-avatar" src="" alt="">
-         <div>
-           <div class="user-name" id="user-name-display"></div>
-           <button class="logout-btn" onclick="handleLogout()">Sign out</button>
-         </div>
-       </div>
-       <button class="refresh-btn" onclick="refreshAll()">🔄</button>
-     </div>
-   </div>
-   <div class="date-nav">
-     <button class="date-nav-btn" onclick="changeDashMonth(-1)">‹</button>
-     <span class="date-nav-label" id="dash-month-label"></span>
-     <button class="date-nav-btn" onclick="changeDashMonth(1)">›</button>
-   </div>
-   <div class="summary-row">
-     <div class="summary-card"><div class="summary-label">Income</div><div class="summary-value income" id="dash-income">₹0</div></div>
-     <div class="summary-card"><div class="summary-label">Expenses</div><div class="summary-value expense" id="dash-expense">₹0</div></div>
-     <div class="summary-card full"><div class="summary-label">Balance</div><div class="summary-value balance" id="dash-balance">₹0</div></div>
-   </div>
-   <div class="card">
-     <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">Expenses by Category</h3>
-     <div id="dash-categories"></div>
-   </div>
-   <div style="margin-top:12px;">
-     <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">Recent Transactions</h3>
-     <div class="card" id="dash-recent"></div>
-   </div>
- </div>
-
- <!-- DAILY -->
- <div id="screen-daily" class="screen">
-   <div class="screen-header">
-     <h1 class="screen-title">📅 Daily</h1>
-     <button class="refresh-btn" onclick="fetchDailyExpenses()">🔄</button>
-   </div>
-   <div style="margin-bottom:12px;">
-     <input type="date" class="form-input" id="daily-date-filter" onchange="renderDaily()">
-   </div>
-   <div id="daily-list"></div>
- </div>
-
- <!-- MONTHLY -->
- <div id="screen-monthly" class="screen">
-   <div class="screen-header">
-     <h1 class="screen-title">📆 Monthly</h1>
-     <button class="refresh-btn" onclick="fetchMonthlyExpenses()">🔄</button>
-   </div>
-   <div class="date-nav">
-     <button class="date-nav-btn" onclick="changeMonth(-1)">‹</button>
-     <span class="date-nav-label" id="month-label"></span>
-     <button class="date-nav-btn" onclick="changeMonth(1)">›</button>
-   </div>
-   <div class="summary-row">
-     <div class="summary-card"><div class="summary-label">Total</div><div class="summary-value expense" id="monthly-total">₹0</div></div>
-     <div class="summary-card"><div class="summary-label">Pending</div><div class="summary-value" style="color:var(--warning)" id="monthly-pending">₹0</div></div>
-   </div>
-   <div class="tab-row">
-     <button class="tab-btn active" onclick="filterMonthly('All',this)">All</button>
-     <button class="tab-btn" onclick="filterMonthly('Pending',this)">Pending</button>
-     <button class="tab-btn" onclick="filterMonthly('Paid',this)">Paid</button>
-   </div>
-   <div id="monthly-list"></div>
- </div>
-
- <!-- YEARLY -->
- <div id="screen-yearly" class="screen">
-   <div class="screen-header">
-     <h1 class="screen-title">📈 Yearly</h1>
-     <button class="refresh-btn" onclick="refreshAll()">🔄</button>
-   </div>
-   <div class="date-nav">
-     <button class="date-nav-btn" onclick="changeYear(-1)">‹</button>
-     <span class="date-nav-label" id="year-label"></span>
-     <button class="date-nav-btn" onclick="changeYear(1)">›</button>
-   </div>
-   <div class="summary-row">
-     <div class="summary-card"><div class="summary-label">Total Income</div><div class="summary-value income" id="yearly-income">₹0</div></div>
-     <div class="summary-card"><div class="summary-label">Total Expense</div><div class="summary-value expense" id="yearly-expense">₹0</div></div>
-   </div>
-   <div class="card">
-     <table class="yearly-table">
-       <thead><tr><th>Month</th><th>Income</th><th>Expense</th><th>Balance</th></tr></thead>
-       <tbody id="yearly-table-body"></tbody>
-     </table>
-   </div>
- </div>
-
- <!-- BANKS -->
- <div id="screen-banks" class="screen">
-   <div class="screen-header">
-     <h1 class="screen-title">🏦 Banks</h1>
-     <button class="refresh-btn" onclick="fetchBanks()">🔄</button>
-   </div>
-   <div class="summary-row">
-     <div class="summary-card full"><div class="summary-label">Total Balance</div><div class="summary-value balance" id="banks-total">₹0</div></div>
-   </div>
-   <div id="banks-list"></div>
- </div>
-
- <!-- INTEREST -->
- <div id="screen-interest" class="screen">
-   <div class="screen-header">
-     <h1 class="screen-title">💰 Interest</h1>
-   </div>
-   <div class="card">
-     <div class="form-group"><label class="form-label">Principal Amount (₹)</label><input type="number" class="form-input" id="int-principal" placeholder="100000" oninput="calcInterest()"></div>
-     <div class="form-row">
-       <div class="form-group"><label class="form-label">Rate (%)</label><input type="number" class="form-input" id="int-rate" placeholder="8.5" step="0.1" oninput="calcInterest()"></div>
-       <div class="form-group"><label class="form-label">Years</label><input type="number" class="form-input" id="int-years" placeholder="5" oninput="calcInterest()"></div>
-     </div>
-     <div class="form-group"><label class="form-label">Compounding</label>
-       <select class="form-select" id="int-compound" onchange="calcInterest()">
-         <option value="1">Yearly</option>
-         <option value="2">Half-Yearly</option>
-         <option value="4">Quarterly</option>
-         <option value="12" selected>Monthly</option>
-         <option value="365">Daily</option>
-       </select>
-     </div>
-   </div>
-   <div id="interest-result"></div>
- </div>
-
- <!-- FAB -->
- <button class="fab" id="fab-btn" onclick="openAddModal()">+</button>
-
- <!-- DAILY MODAL -->
- <div class="modal-overlay" id="daily-modal" onclick="if(event.target===this)closeDailyModal()">
-   <div class="modal">
-     <div class="modal-handle"></div>
-     <h2 class="modal-title" id="daily-modal-title">Add Transaction</h2>
-     <div class="type-toggle">
-       <button class="type-btn expense-type active" id="type-expense-btn" onclick="setType('Expense')">💸 Expense</button>
-       <button class="type-btn income-type" id="type-income-btn" onclick="setType('Income')">💰 Income</button>
-     </div>
-     <div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input" id="form-date"></div>
-     <div class="form-row">
-       <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="form-category"><option value="">Select</option></select></div>
-       <div class="form-group"><label class="form-label">Amount (₹)</label><input type="number" class="form-input" id="form-amount" placeholder="0"></div>
-     </div>
-     <div class="form-group"><label class="form-label">Description</label><input type="text" class="form-input" id="form-description" placeholder="What was this for?"></div>
-     <div class="form-row">
-       <div class="form-group"><label class="form-label">Bank</label><select class="form-select" id="form-bank"><option value="">Select</option></select></div>
-       <div class="form-group"><label class="form-label">Payment Mode</label>
-         <select class="form-select" id="form-payment">
-           <option value="UPI">UPI</option>
-           <option value="Cash">Cash</option>
-           <option value="Card">Card</option>
-           <option value="Net Banking">Net Banking</option>
-           <option value="Cheque">Cheque</option>
-         </select>
-       </div>
-     </div>
-     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="form-notes" placeholder="Optional notes..."></textarea></div>
-     <div class="modal-actions">
-       <button class="btn btn-cancel" onclick="closeDailyModal()">Cancel</button>
-       <button class="btn btn-primary" id="daily-save-btn" onclick="saveDaily()">Save</button>
-     </div>
-   </div>
- </div>
-
- <!-- MONTHLY MODAL -->
- <div class="modal-overlay" id="monthly-modal" onclick="if(event.target===this)closeMonthlyModal()">
-   <div class="modal">
-     <div class="modal-handle"></div>
-     <h2 class="modal-title" id="monthly-modal-title">Add Monthly Expense</h2>
-     <div class="form-row">
-       <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="mform-category"><option value="">Select</option></select></div>
-       <div class="form-group"><label class="form-label">Amount (₹)</label><input type="number" class="form-input" id="mform-amount" placeholder="0"></div>
-     </div>
-     <div class="form-group"><label class="form-label">Description</label><input type="text" class="form-input" id="mform-description" placeholder="Description"></div>
-     <div class="form-row">
-       <div class="form-group"><label class="form-label">Bank</label><select class="form-select" id="mform-bank"><option value="">Select</option></select></div>
-       <div class="form-group"><label class="form-label">Payment Mode</label>
-         <select class="form-select" id="mform-payment">
-           <option value="UPI">UPI</option>
-           <option value="Cash">Cash</option>
-           <option value="Card">Card</option>
-           <option value="Net Banking">Net Banking</option>
-           <option value="Auto Debit">Auto Debit</option>
-         </select>
-       </div>
-     </div>
-     <div class="form-row">
-       <div class="form-group"><label class="form-label">Due Date</label><input type="text" class="form-input" id="mform-duedate" placeholder="e.g., 5th"></div>
-       <div class="form-group"><label class="form-label">Recurring</label><select class="form-select" id="mform-recurring"><option value="Yes">Yes</option><option value="No">No</option></select></div>
-     </div>
-     <div class="form-group"><label class="form-label">Status</label><select class="form-select" id="mform-status"><option value="Pending">Pending</option><option value="Paid">Paid</option></select></div>
-     <div class="modal-actions">
-       <button class="btn btn-cancel" onclick="closeMonthlyModal()">Cancel</button>
-       <button class="btn btn-primary" id="monthly-save-btn" onclick="saveMonthly()">Save</button>
-     </div>
-   </div>
- </div>
-
- <!-- BANK MODAL -->
- <div class="modal-overlay" id="bank-modal" onclick="if(event.target===this)closeBankModal()">
-   <div class="modal">
-     <div class="modal-handle"></div>
-     <h2 class="modal-title">Add Bank</h2>
-     <div class="form-group"><label class="form-label">Bank Name</label><input type="text" class="form-input" id="bank-form-name" placeholder="e.g., SBI, HDFC"></div>
-     <div class="form-group"><label class="form-label">Initial Balance (₹)</label><input type="number" class="form-input" id="bank-form-balance" placeholder="0"></div>
-     <div class="modal-actions">
-       <button class="btn btn-cancel" onclick="closeBankModal()">Cancel</button>
-       <button class="btn btn-primary" onclick="saveBank()">Save</button>
-     </div>
-   </div>
- </div>
-
- <!-- Bottom Nav -->
- <nav class="bottom-nav">
-   <button class="nav-item active" onclick="switchScreen('dashboard',this)">
-     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Home
-   </button>
-   <button class="nav-item" onclick="switchScreen('daily',this)">
-     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Daily
-   </button>
-   <button class="nav-item" onclick="switchScreen('monthly',this)">
-     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Monthly
-   </button>
-   <button class="nav-item" onclick="switchScreen('yearly',this)">
-     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Yearly
-   </button>
-   <button class="nav-item" onclick="switchScreen('banks',this)">
-     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M12 3l9 7H3l9-7z"/><path d="M5 10v11"/><path d="M19 10v11"/></svg>Banks
-   </button>
-   <button class="nav-item" onclick="switchScreen('interest',this)">
-     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Interest
-   </button>
- </nav>
+<!-- DASHBOARD -->
+<div id="screen-dashboard" class="screen active">
+<div class="screen-header">
+<h1 class="screen-title">📊 Dashboard</h1>
+<div style="display:flex;gap:8px;align-items:center;">
+<div class="user-info" id="user-info">
+<img class="user-avatar" id="user-avatar" src="" alt="">
+<div>
+<div class="user-name" id="user-name-display"></div>
+<button class="logout-btn" onclick="handleLogout()">Sign out</button>
+</div>
+</div>
+<button class="refresh-btn" onclick="refreshAll()">🔄</button>
+</div>
+</div>
+<div class="date-nav">
+<button class="date-nav-btn" onclick="changeDashMonth(-1)">‹</button>
+<span class="date-nav-label" id="dash-month-label"></span>
+<button class="date-nav-btn" onclick="changeDashMonth(1)">›</button>
+</div>
+<div class="summary-row">
+<div class="summary-card"><div class="summary-label">Income</div><div class="summary-value income" id="dash-income">₹0</div></div>
+<div class="summary-card"><div class="summary-label">Expenses</div><div class="summary-value expense" id="dash-expense">₹0</div></div>
+<div class="summary-card full"><div class="summary-label">Balance</div><div class="summary-value balance" id="dash-balance">₹0</div></div>
+</div>
+<div class="card">
+<h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">Expenses by Category</h3>
+<div id="dash-categories"></div>
+</div>
+<div style="margin-top:12px;">
+<h3 style="font-size:14px;font-weight:600;margin-bottom:12px;">Recent Transactions</h3>
+<div class="card" id="dash-recent"></div>
+</div>
 </div>
 
-<!-- Load Google Identity Services — NO async/defer so it's ready before our boot -->
-<script src="https://accounts.google.com/gsi/client" onload="onGsiLoaded()" onerror="onGsiError()"></script>
+<!-- DAILY -->
+<div id="screen-daily" class="screen">
+<div class="screen-header">
+<h1 class="screen-title">📅 Daily</h1>
+<button class="refresh-btn" onclick="fetchDailyExpenses()">🔄</button>
+</div>
+<div style="margin-bottom:12px;">
+<input type="date" class="form-input" id="daily-date-filter" onchange="renderDaily()">
+</div>
+<div id="daily-list"></div>
+</div>
+
+<!-- MONTHLY -->
+<div id="screen-monthly" class="screen">
+<div class="screen-header">
+<h1 class="screen-title">📆 Monthly</h1>
+<button class="refresh-btn" onclick="fetchMonthlyExpenses()">🔄</button>
+</div>
+<div class="date-nav">
+<button class="date-nav-btn" onclick="changeMonth(-1)">‹</button>
+<span class="date-nav-label" id="month-label"></span>
+<button class="date-nav-btn" onclick="changeMonth(1)">›</button>
+</div>
+<div class="summary-row">
+<div class="summary-card"><div class="summary-label">Total</div><div class="summary-value expense" id="monthly-total">₹0</div></div>
+<div class="summary-card"><div class="summary-label">Pending</div><div class="summary-value" style="color:var(--warning)" id="monthly-pending">₹0</div></div>
+</div>
+<div class="tab-row">
+<button class="tab-btn active" onclick="filterMonthly('All',this)">All</button>
+<button class="tab-btn" onclick="filterMonthly('Pending',this)">Pending</button>
+<button class="tab-btn" onclick="filterMonthly('Paid',this)">Paid</button>
+</div>
+<div id="monthly-list"></div>
+</div>
+
+<!-- YEARLY -->
+<div id="screen-yearly" class="screen">
+<div class="screen-header">
+<h1 class="screen-title">📈 Yearly</h1>
+<button class="refresh-btn" onclick="refreshAll()">🔄</button>
+</div>
+<div class="date-nav">
+<button class="date-nav-btn" onclick="changeYear(-1)">‹</button>
+<span class="date-nav-label" id="year-label"></span>
+<button class="date-nav-btn" onclick="changeYear(1)">›</button>
+</div>
+<div class="summary-row">
+<div class="summary-card"><div class="summary-label">Total Income</div><div class="summary-value income" id="yearly-income">₹0</div></div>
+<div class="summary-card"><div class="summary-label">Total Expense</div><div class="summary-value expense" id="yearly-expense">₹0</div></div>
+</div>
+<div class="card">
+<table class="yearly-table">
+<thead><tr><th>Month</th><th>Income</th><th>Expense</th><th>Balance</th></tr></thead>
+<tbody id="yearly-table-body"></tbody>
+</table>
+</div>
+</div>
+
+<!-- BANKS -->
+<div id="screen-banks" class="screen">
+<div class="screen-header">
+<h1 class="screen-title">🏦 Banks</h1>
+<button class="refresh-btn" onclick="fetchBanks()">🔄</button>
+</div>
+<div class="summary-row">
+<div class="summary-card full"><div class="summary-label">Total Balance</div><div class="summary-value balance" id="banks-total">₹0</div></div>
+</div>
+<div id="banks-list"></div>
+</div>
+
+<!-- INTEREST -->
+<div id="screen-interest" class="screen">
+<div class="screen-header">
+<h1 class="screen-title">💰 Interest</h1>
+</div>
+<div class="card">
+<div class="form-group"><label class="form-label">Principal Amount (₹)</label><input type="number" class="form-input" id="int-principal" placeholder="100000" oninput="calcInterest()"></div>
+<div class="form-row">
+<div class="form-group"><label class="form-label">Rate (%)</label><input type="number" class="form-input" id="int-rate" placeholder="8.5" step="0.1" oninput="calcInterest()"></div>
+<div class="form-group"><label class="form-label">Years</label><input type="number" class="form-input" id="int-years" placeholder="5" oninput="calcInterest()"></div>
+</div>
+<div class="form-group"><label class="form-label">Compounding</label>
+<select class="form-select" id="int-compound" onchange="calcInterest()">
+<option value="1">Yearly</option>
+<option value="2">Half-Yearly</option>
+<option value="4">Quarterly</option>
+<option value="12" selected>Monthly</option>
+<option value="365">Daily</option>
+</select>
+</div>
+</div>
+<div id="interest-result"></div>
+</div>
+
+<!-- FAB -->
+<button class="fab" id="fab-btn" onclick="openAddModal()">+</button>
+
+<!-- DAILY MODAL -->
+<div class="modal-overlay" id="daily-modal" onclick="if(event.target===this)closeDailyModal()">
+<div class="modal">
+<div class="modal-handle"></div>
+<h2 class="modal-title" id="daily-modal-title">Add Transaction</h2>
+<div class="type-toggle">
+<button class="type-btn expense-type active" id="type-expense-btn" onclick="setType('Expense')">💸 Expense</button>
+<button class="type-btn income-type" id="type-income-btn" onclick="setType('Income')">💰 Income</button>
+</div>
+<div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input" id="form-date"></div>
+<div class="form-row">
+<div class="form-group"><label class="form-label">Category</label><select class="form-select" id="form-category"><option value="">Select</option></select></div>
+<div class="form-group"><label class="form-label">Amount (₹)</label><input type="number" class="form-input" id="form-amount" placeholder="0"></div>
+</div>
+<div class="form-group"><label class="form-label">Description</label><input type="text" class="form-input" id="form-description" placeholder="What was this for?"></div>
+<div class="form-row">
+<div class="form-group"><label class="form-label">Bank</label><select class="form-select" id="form-bank"><option value="">Select</option></select></div>
+<div class="form-group"><label class="form-label">Payment Mode</label>
+<select class="form-select" id="form-payment">
+<option value="UPI">UPI</option>
+<option value="Cash">Cash</option>
+<option value="Card">Card</option>
+<option value="Net Banking">Net Banking</option>
+<option value="Cheque">Cheque</option>
+</select>
+</div>
+</div>
+<div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="form-notes" placeholder="Optional notes..."></textarea></div>
+<div class="modal-actions">
+<button class="btn btn-cancel" onclick="closeDailyModal()">Cancel</button>
+<button class="btn btn-primary" id="daily-save-btn" onclick="saveDaily()">Save</button>
+</div>
+</div>
+</div>
+
+<!-- MONTHLY MODAL -->
+<div class="modal-overlay" id="monthly-modal" onclick="if(event.target===this)closeMonthlyModal()">
+<div class="modal">
+<div class="modal-handle"></div>
+<h2 class="modal-title" id="monthly-modal-title">Add Monthly Expense</h2>
+<div class="form-row">
+<div class="form-group"><label class="form-label">Category</label><select class="form-select" id="mform-category"><option value="">Select</option></select></div>
+<div class="form-group"><label class="form-label">Amount (₹)</label><input type="number" class="form-input" id="mform-amount" placeholder="0"></div>
+</div>
+<div class="form-group"><label class="form-label">Description</label><input type="text" class="form-input" id="mform-description" placeholder="Description"></div>
+<div class="form-row">
+<div class="form-group"><label class="form-label">Bank</label><select class="form-select" id="mform-bank"><option value="">Select</option></select></div>
+<div class="form-group"><label class="form-label">Payment Mode</label>
+<select class="form-select" id="mform-payment">
+<option value="UPI">UPI</option>
+<option value="Cash">Cash</option>
+<option value="Card">Card</option>
+<option value="Net Banking">Net Banking</option>
+<option value="Auto Debit">Auto Debit</option>
+</select>
+</div>
+</div>
+<div class="form-row">
+<div class="form-group"><label class="form-label">Due Date</label><input type="text" class="form-input" id="mform-duedate" placeholder="e.g., 5th"></div>
+<div class="form-group"><label class="form-label">Recurring</label><select class="form-select" id="mform-recurring"><option value="Yes">Yes</option><option value="No">No</option></select></div>
+</div>
+<div class="form-group"><label class="form-label">Status</label><select class="form-select" id="mform-status"><option value="Pending">Pending</option><option value="Paid">Paid</option></select></div>
+<div class="modal-actions">
+<button class="btn btn-cancel" onclick="closeMonthlyModal()">Cancel</button>
+<button class="btn btn-primary" id="monthly-save-btn" onclick="saveMonthly()">Save</button>
+</div>
+</div>
+</div>
+
+<!-- BANK MODAL -->
+<div class="modal-overlay" id="bank-modal" onclick="if(event.target===this)closeBankModal()">
+<div class="modal">
+<div class="modal-handle"></div>
+<h2 class="modal-title">Add Bank</h2>
+<div class="form-group"><label class="form-label">Bank Name</label><input type="text" class="form-input" id="bank-form-name" placeholder="e.g., SBI, HDFC"></div>
+<div class="form-group"><label class="form-label">Initial Balance (₹)</label><input type="number" class="form-input" id="bank-form-balance" placeholder="0"></div>
+<div class="modal-actions">
+<button class="btn btn-cancel" onclick="closeBankModal()">Cancel</button>
+<button class="btn btn-primary" onclick="saveBank()">Save</button>
+</div>
+</div>
+</div>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+<button class="nav-item active" onclick="switchScreen('dashboard',this)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Home
+</button>
+<button class="nav-item" onclick="switchScreen('daily',this)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Daily
+</button>
+<button class="nav-item" onclick="switchScreen('monthly',this)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>Monthly
+</button>
+<button class="nav-item" onclick="switchScreen('yearly',this)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Yearly
+</button>
+<button class="nav-item" onclick="switchScreen('banks',this)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"/><path d="M3 10h18"/><path d="M12 3l9 7H3l9-7z"/><path d="M5 10v11"/><path d="M19 10v11"/></svg>Banks
+</button>
+<button class="nav-item" onclick="switchScreen('interest',this)">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Interest
+</button>
+</nav>
+</div>
+
+<!-- GOOGLE IDENTITY SERVICES -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
 <script>
 // =====================================================
 // CONFIGURATION
@@ -415,10 +412,12 @@
 const GOOGLE_CLIENT_ID = '71456914529-g01jj3m74spo7odobg0r5ivad9rcdi8h.apps.googleusercontent.com';
 const SPREADSHEET_NAME = 'Expense Tracker';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+
 const EXPENSE_CATS = ['Food','Transport','Shopping','Bills','Entertainment','Health','Education','Rent','EMI','Insurance','Investment','Groceries','Fuel','Recharge','Subscriptions','Travel','Clothing','Gifts','Charity','Other'];
 const INCOME_CATS = ['Salary','Freelance','Business','Investment Returns','Rental Income','Interest','Dividends','Refund','Gift','Other'];
 const CAT_COLORS = ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ef4444','#14b8a6','#f97316','#06b6d4','#84cc16','#e11d48','#a855f7','#0ea5e9','#eab308','#22d3ee','#d946ef','#64748b','#fb923c','#78716c'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
 const DAILY_HEADERS = ['ID','Date','Type','Category','Description','Amount','Bank','PaymentMode','Notes','CreatedAt'];
 const MONTHLY_HEADERS = ['ID','Month','Year','Category','Description','Amount','Bank','PaymentMode','DueDate','Recurring','Status','CreatedAt'];
 const BANKS_HEADERS = ['ID','Name','Balance','CreatedAt'];
@@ -429,6 +428,7 @@ const BANKS_HEADERS = ['ID','Name','Balance','CreatedAt'];
 let accessToken = null;
 let userProfile = null;
 let spreadsheetId = null;
+let tokenClient = null;
 let dailyExpenses = [];
 let monthlyExpenses = [];
 let banks = [];
@@ -437,369 +437,446 @@ let currentType = 'Expense';
 let editingDailyRow = null;
 let editingMonthlyRow = null;
 let monthlyStatusFilter = 'All';
+
 const now = new Date();
 let dashMonth = now.getMonth(), dashYear = now.getFullYear();
 let viewMonth = now.getMonth(), viewYear = now.getFullYear();
 let viewYearOnly = now.getFullYear();
 
-// ── MOBILE FIX: track GSI load state ──
-let gsiLoaded = false;
-let gsiLoadAttempts = 0;
-
 // =====================================================
-// GSI LOAD CALLBACKS  ← KEY MOBILE FIX
+// MOBILE / WEBVIEW DETECTION
 // =====================================================
-function onGsiLoaded() {
-  gsiLoaded = true;
-  initGoogleAuth();
+function isWebView() {
+    const ua = navigator.userAgent || '';
+    // Common WebView indicators
+    if (/wv\)/.test(ua)) return true;
+    if (/Android.*Version\/[\d.]+.*(Chrome\/[\d.]+ Mobile|wv)/.test(ua) && !/Chrome\/[\d.]+ (Mobile )?Safari/.test(ua)) return true;
+    if (/FB_IAB|FBAN|FBAV|Instagram|Line\/|Twitter|MicroMessenger/i.test(ua)) return true;
+    // iOS in-app browser
+    if (/iPhone|iPad/.test(ua) && !/Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)) return true;
+    return false;
 }
 
-function onGsiError() {
-  // GSI script failed to load (network issue on mobile)
-  const statusEl = document.getElementById('auth-status');
-  statusEl.className = 'auth-status error';
-  statusEl.textContent = 'Failed to load Google services. Please check your connection and refresh.';
-  document.getElementById('manual-signin-btn').style.display = 'block';
+function isMobile() {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+}
+
+function showWebViewWarning() {
+    const auth = document.getElementById('auth-screen');
+    auth.innerHTML = `
+        <div class="auth-logo">⚠️</div>
+        <h1 class="auth-title">Open in Browser</h1>
+        <p class="auth-sub">Google sign-in is blocked inside in-app browsers.</p>
+        <div class="webview-warning">
+            <h3>How to fix:</h3>
+            <p>1. Tap the <strong>menu (⋮)</strong> at the top-right</p>
+            <p>2. Choose <strong>"Open in Chrome"</strong> or <strong>"Open in Browser"</strong></p>
+            <p>3. Sign in there - your data stays safe in your Google Sheet</p>
+        </div>
+        <button class="retry-btn" onclick="copyLinkToClipboard()" style="margin-top:20px;">📋 Copy Link</button>
+    `;
+}
+
+function copyLinkToClipboard() {
+    const url = window.location.href;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(() => alert('Link copied! Paste in Chrome.'));
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = url; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); alert('Link copied! Paste in Chrome.'); } catch(e){}
+        document.body.removeChild(ta);
+    }
 }
 
 // =====================================================
-// AUTH — Google Identity Services
+// AUTH — Google Identity Services (Mobile-Safe)
 // =====================================================
+let gisRetryCount = 0;
+const GIS_MAX_RETRIES = 30;
+
 function initGoogleAuth() {
-  const statusEl = document.getElementById('auth-status');
+    const statusEl = document.getElementById('auth-status');
 
-  // ── MOBILE FIX: Poll until google.accounts is truly ready ──
-  if (typeof google === 'undefined' || !google.accounts || !google.accounts.id || !google.accounts.oauth2) {
-    gsiLoadAttempts++;
-    if (gsiLoadAttempts > 20) {
-      // After 10s still not ready — show manual button
-      statusEl.textContent = 'Google services took too long. Tap below to try.';
-      document.getElementById('manual-signin-btn').style.display = 'block';
-      return;
-    }
-    setTimeout(initGoogleAuth, 500);
-    return;
-  }
-
-  // ── 1. Try cached token (auto-login for returning users) ──
-  const savedToken = localStorage.getItem('et_access_token');
-  const savedExpiry = localStorage.getItem('et_token_expiry');
-  if (savedToken && savedExpiry && Date.now() < parseInt(savedExpiry)) {
-    accessToken = savedToken;
-    spreadsheetId = localStorage.getItem('et_spreadsheet_id');
-    const savedProfile = localStorage.getItem('et_user_profile');
-    if (savedProfile) userProfile = JSON.parse(savedProfile);
-    statusEl.innerHTML = '<div class="auth-spinner"></div>Auto-signing in...';
-    verifyTokenAndEnter();
-    return;
-  }
-
-  // ── 2. Initialize Google Identity and render button ──
-  // NOTE: On mobile, One Tap is often blocked by browsers.
-  // We render the button AND show our own fallback button.
-  try {
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleCredentialResponse,
-      auto_select: false, // MOBILE FIX: disable auto_select — it causes blank screens on mobile
-      cancel_on_tap_outside: false,
-      use_fedcm_for_prompt: false, // MOBILE FIX: disable FedCM which breaks on mobile browsers
-    });
-
-    google.accounts.id.renderButton(
-      document.getElementById('google-signin-container'),
-      { theme: 'outline', size: 'large', width: 280, text: 'signin_with', shape: 'rectangular', logo_alignment: 'left' }
-    );
-
-    // Show One Tap prompt — but ALSO show our manual button as fallback
-    google.accounts.id.prompt((notification) => {
-      // One Tap not shown (most mobile browsers block it) — show our button
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        document.getElementById('manual-signin-btn').style.display = 'block';
-        statusEl.textContent = 'Tap "Sign in with Google" to continue';
-      }
-    });
-
-    statusEl.textContent = 'Tap the button to sign in with Google';
-    // Always show fallback button on mobile as extra safety
-    if (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
-      document.getElementById('manual-signin-btn').style.display = 'block';
-    }
-  } catch(err) {
-    statusEl.className = 'auth-status error';
-    statusEl.textContent = 'Error initializing Google Sign-In. Please refresh.';
-    document.getElementById('manual-signin-btn').style.display = 'block';
-  }
-}
-
-// ── MOBILE FIX: Manual sign-in button triggers OAuth popup directly ──
-function startManualSignIn() {
-  if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-    showToast('Google not loaded yet. Please wait or refresh.', 'error');
-    return;
-  }
-  const statusEl = document.getElementById('auth-status');
-  statusEl.innerHTML = '<div class="auth-spinner"></div>Opening sign-in...';
-
-  // On mobile, skip the ID token step and go directly to OAuth token
-  // This avoids One Tap issues entirely
-  const tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: SCOPES,
-    prompt: 'select_account',
-    callback: async (tokenResponse) => {
-      if (tokenResponse.error) {
-        statusEl.className = 'auth-status error';
-        statusEl.textContent = 'Sign-in failed: ' + (tokenResponse.error_description || tokenResponse.error);
-        document.getElementById('manual-signin-btn').style.display = 'block';
+    // Block WebViews early
+    if (isWebView()) {
+        showWebViewWarning();
         return;
-      }
-      accessToken = tokenResponse.access_token;
-      const expiresIn = tokenResponse.expires_in || 3600;
-      localStorage.setItem('et_access_token', accessToken);
-      localStorage.setItem('et_token_expiry', (Date.now() + expiresIn * 1000).toString());
+    }
 
-      // Fetch user profile via userinfo endpoint since we skipped ID token
-      statusEl.innerHTML = '<div class="auth-spinner"></div>Getting your profile...';
-      try {
-        const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-          headers: { Authorization: `Bearer ${accessToken}` }
+    // Check if Google Identity Services loaded
+    if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+        gisRetryCount++;
+        statusEl.innerHTML = `<div class="auth-spinner"></div>Loading Google services... (${gisRetryCount}/${GIS_MAX_RETRIES})`;
+
+        if (gisRetryCount >= GIS_MAX_RETRIES) {
+            statusEl.className = 'auth-status error';
+            statusEl.innerHTML = `
+                <strong>⚠ Google Sign-In failed to load</strong><br>
+                <small>Check your internet connection</small>
+                <br><button class="retry-btn" onclick="location.reload()">Retry</button>
+            `;
+            return;
+        }
+        setTimeout(initGoogleAuth, 500);
+        return;
+    }
+
+    gisRetryCount = 0;
+
+    // ── Step 1: Try cached token (auto-login) ──
+    const savedToken = localStorage.getItem('et_access_token');
+    const savedExpiry = localStorage.getItem('et_token_expiry');
+
+    if (savedToken && savedExpiry && Date.now() < parseInt(savedExpiry)) {
+        accessToken = savedToken;
+        spreadsheetId = localStorage.getItem('et_spreadsheet_id');
+        const savedProfile = localStorage.getItem('et_user_profile');
+        if (savedProfile) {
+            try { userProfile = JSON.parse(savedProfile); } catch(e) {}
+        }
+        statusEl.innerHTML = '<div class="auth-spinner"></div>Auto-signing in...';
+        verifyTokenAndEnter();
+        return;
+    }
+
+    // ── Step 2: Initialize OAuth2 token client ──
+    try {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: SCOPES,
+            prompt: '',
+            callback: handleTokenResponse,
+            error_callback: handleTokenError,
         });
-        userProfile = await res.json();
-        localStorage.setItem('et_user_profile', JSON.stringify(userProfile));
-      } catch(e) { /* non-fatal, proceed without profile pic */ }
+    } catch (err) {
+        console.error('Token client init error:', err);
+        statusEl.className = 'auth-status error';
+        statusEl.textContent = 'Init error: ' + err.message;
+        return;
+    }
 
-      statusEl.innerHTML = '<div class="auth-spinner"></div>Setting up your spreadsheet...';
-      const wasNew = await setupSpreadsheet();
-      enterApp(wasNew);
-    },
-  });
-  tokenClient.requestAccessToken();
+    // ── Step 3: Render Google button (works on all devices) ──
+    try {
+        google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleCredentialResponse,
+            auto_select: false,
+            cancel_on_tap_outside: true,
+            use_fedcm_for_prompt: true,
+            ux_mode: 'popup',
+        });
+
+        const container = document.getElementById('google-signin-container');
+        container.innerHTML = '';
+
+        const width = Math.min(window.innerWidth - 80, 320);
+
+        google.accounts.id.renderButton(container, {
+            theme: 'outline',
+            size: 'large',
+            width: width,
+            text: 'signin_with',
+            shape: 'rectangular',
+            logo_alignment: 'left'
+        });
+
+        statusEl.innerHTML = 'Tap the button to sign in';
+
+        // Show fallback manual button after 3 sec if Google button doesn't render
+        setTimeout(() => {
+            if (!container.querySelector('iframe, div[role="button"]')) {
+                document.getElementById('manual-signin-btn').style.display = 'flex';
+                statusEl.innerHTML = 'Use the button below to sign in';
+            }
+        }, 3000);
+
+        // Try One Tap on desktop only
+        if (!isMobile()) {
+            try {
+                google.accounts.id.prompt();
+            } catch(e) {}
+        }
+    } catch (err) {
+        console.error('Render button error:', err);
+        document.getElementById('manual-signin-btn').style.display = 'flex';
+        statusEl.textContent = 'Use the button below to sign in';
+    }
 }
 
-// Called after user picks an account (ID token flow — desktop / GIS button)
+// Manual sign-in button (fallback)
+function manualSignIn() {
+    const statusEl = document.getElementById('auth-status');
+    if (!tokenClient) {
+        statusEl.className = 'auth-status error';
+        statusEl.textContent = 'Sign-in not ready. Reload the page.';
+        return;
+    }
+    statusEl.innerHTML = '<div class="auth-spinner"></div>Opening Google sign-in...';
+    try {
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+    } catch(e) {
+        statusEl.className = 'auth-status error';
+        statusEl.textContent = 'Error: ' + e.message;
+    }
+}
+
+// Handles Google ID button credential
 function handleCredentialResponse(response) {
-  const statusEl = document.getElementById('auth-status');
-  statusEl.innerHTML = '<div class="auth-spinner"></div>Signing in...';
-  const payload = parseJwt(response.credential);
-  userProfile = {
-    name: payload.name, email: payload.email,
-    picture: payload.picture, sub: payload.sub
-  };
-  localStorage.setItem('et_user_profile', JSON.stringify(userProfile));
-  requestAccessToken();
+    const statusEl = document.getElementById('auth-status');
+    statusEl.innerHTML = '<div class="auth-spinner"></div>Signing in...';
+    try {
+        const payload = parseJwt(response.credential);
+        userProfile = {
+            name: payload.name,
+            email: payload.email,
+            picture: payload.picture,
+            sub: payload.sub
+        };
+        localStorage.setItem('et_user_profile', JSON.stringify(userProfile));
+    } catch(e) { console.error('JWT parse error:', e); }
+
+    // Now request access token for Sheets/Drive
+    statusEl.innerHTML = '<div class="auth-spinner"></div>Getting permissions...';
+    try {
+        tokenClient.requestAccessToken({
+            prompt: '',
+            hint: userProfile ? userProfile.email : ''
+        });
+    } catch(e) {
+        // Retry with explicit consent
+        try {
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        } catch(err) {
+            statusEl.className = 'auth-status error';
+            statusEl.textContent = 'Error: ' + err.message;
+        }
+    }
 }
 
-// Core: request OAuth2 access token
-function requestAccessToken() {
-  const statusEl = document.getElementById('auth-status');
-  statusEl.innerHTML = '<div class="auth-spinner"></div>Getting permissions...';
-  const tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: SCOPES,
-    prompt: '',
-    login_hint: userProfile ? userProfile.email : '',
-    callback: async (tokenResponse) => {
-      if (tokenResponse.error) {
+// Token callback
+async function handleTokenResponse(tokenResponse) {
+    const statusEl = document.getElementById('auth-status');
+
+    if (tokenResponse.error) {
         if (tokenResponse.error === 'interaction_required' || tokenResponse.error === 'consent_required') {
-          retryWithConsent();
-          return;
+            try {
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            } catch(e) {}
+            return;
         }
         statusEl.className = 'auth-status error';
         statusEl.textContent = 'Error: ' + (tokenResponse.error_description || tokenResponse.error);
         return;
-      }
-      accessToken = tokenResponse.access_token;
-      const expiresIn = tokenResponse.expires_in || 3600;
-      localStorage.setItem('et_access_token', accessToken);
-      localStorage.setItem('et_token_expiry', (Date.now() + expiresIn * 1000).toString());
-      statusEl.innerHTML = '<div class="auth-spinner"></div>Setting up your spreadsheet...';
-      const wasNew = await setupSpreadsheet();
-      enterApp(wasNew);
-    },
-  });
-  tokenClient.requestAccessToken({ prompt: '' });
+    }
+
+    accessToken = tokenResponse.access_token;
+    const expiresIn = tokenResponse.expires_in || 3600;
+    localStorage.setItem('et_access_token', accessToken);
+    localStorage.setItem('et_token_expiry', (Date.now() + expiresIn * 1000).toString());
+
+    // If we don't have profile yet, fetch it
+    if (!userProfile) {
+        try {
+            const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (res.ok) {
+                userProfile = await res.json();
+                localStorage.setItem('et_user_profile', JSON.stringify(userProfile));
+            }
+        } catch(e) { console.error('User info fetch error:', e); }
+    }
+
+    statusEl.innerHTML = '<div class="auth-spinner"></div>Setting up your spreadsheet...';
+    try {
+        const wasNew = await setupSpreadsheet();
+        enterApp(wasNew);
+    } catch(e) {
+        statusEl.className = 'auth-status error';
+        statusEl.textContent = 'Setup error: ' + e.message;
+    }
 }
 
-function retryWithConsent() {
-  const statusEl = document.getElementById('auth-status');
-  statusEl.innerHTML = '<div class="auth-spinner"></div>Please approve permissions...';
-  const tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: SCOPES,
-    prompt: 'consent',
-    login_hint: userProfile ? userProfile.email : '',
-    callback: async (tokenResponse) => {
-      if (tokenResponse.error) {
-        statusEl.className = 'auth-status error';
-        statusEl.textContent = 'Permission denied. Please try again.';
-        document.getElementById('manual-signin-btn').style.display = 'block';
-        return;
-      }
-      accessToken = tokenResponse.access_token;
-      const expiresIn = tokenResponse.expires_in || 3600;
-      localStorage.setItem('et_access_token', accessToken);
-      localStorage.setItem('et_token_expiry', (Date.now() + expiresIn * 1000).toString());
-      const wasNew = await setupSpreadsheet();
-      enterApp(wasNew);
-    },
-  });
-  tokenClient.requestAccessToken({ prompt: 'consent' });
+function handleTokenError(error) {
+    console.error('Token error:', error);
+    const statusEl = document.getElementById('auth-status');
+    statusEl.className = 'auth-status error';
+    statusEl.innerHTML = 'Sign-in cancelled or failed.<br><button class="retry-btn" onclick="manualSignIn()">Try Again</button>';
 }
 
 function parseJwt(token) {
-  try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const json = decodeURIComponent(atob(base64).split('').map(c =>
-      '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-    return JSON.parse(json);
-  } catch(e) { return {}; }
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const json = decodeURIComponent(atob(base64).split('').map(c =>
+            '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+        return JSON.parse(json);
+    } catch(e) { return {}; }
 }
 
 async function verifyTokenAndEnter() {
-  const statusEl = document.getElementById('auth-status');
-  statusEl.innerHTML = '<div class="auth-spinner"></div>Reconnecting...';
-  try {
-    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!res.ok) throw new Error('Token expired');
-    userProfile = await res.json();
-    localStorage.setItem('et_user_profile', JSON.stringify(userProfile));
-    if (!spreadsheetId) await setupSpreadsheet();
-    enterApp();
-  } catch(e) {
-    localStorage.removeItem('et_access_token');
-    localStorage.removeItem('et_token_expiry');
-    accessToken = null;
-    gsiLoadAttempts = 0;
-    initGoogleAuth();
-  }
+    const statusEl = document.getElementById('auth-status');
+    statusEl.innerHTML = '<div class="auth-spinner"></div>Reconnecting...';
+    try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!res.ok) throw new Error('Token expired');
+        userProfile = await res.json();
+        localStorage.setItem('et_user_profile', JSON.stringify(userProfile));
+        if (!spreadsheetId) await setupSpreadsheet();
+        enterApp();
+    } catch(e) {
+        console.warn('Token verify failed:', e);
+        localStorage.removeItem('et_access_token');
+        localStorage.removeItem('et_token_expiry');
+        accessToken = null;
+        initGoogleAuth();
+    }
 }
 
 function handleLogout() {
-  if (!confirm('Sign out?')) return;
-  if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-    google.accounts.id.disableAutoSelect();
-  }
-  ['et_access_token','et_token_expiry','et_user_profile','et_spreadsheet_id'].forEach(k => localStorage.removeItem(k));
-  accessToken = userProfile = spreadsheetId = null;
-  document.getElementById('app-container').classList.remove('active');
-  document.getElementById('auth-screen').classList.remove('hidden');
-  location.reload();
+    if (!confirm('Sign out?')) return;
+    try { google.accounts.id.disableAutoSelect(); } catch(e) {}
+    if (accessToken) {
+        try { google.accounts.oauth2.revoke(accessToken, () => {}); } catch(e) {}
+    }
+    ['et_access_token','et_token_expiry','et_user_profile','et_spreadsheet_id',
+     'dailyExpenses_cache','monthlyExpenses_cache','banks_cache'].forEach(k => localStorage.removeItem(k));
+    accessToken = userProfile = spreadsheetId = null;
+    location.reload();
 }
 
 function enterApp(isNew = false) {
-  document.getElementById('auth-screen').classList.add('hidden');
-  document.getElementById('app-container').classList.add('active');
-  if (userProfile) {
-    document.getElementById('user-avatar').src = userProfile.picture || '';
-    document.getElementById('user-name-display').textContent = userProfile.name || userProfile.email || '';
-  }
-  initApp(isNew);
+    document.getElementById('auth-screen').classList.add('hidden');
+    document.getElementById('app-container').classList.add('active');
+    if (userProfile) {
+        document.getElementById('user-avatar').src = userProfile.picture || '';
+        document.getElementById('user-name-display').textContent = userProfile.name || userProfile.email || '';
+    }
+    initApp(isNew);
 }
 
 // =====================================================
 // GOOGLE SHEETS / DRIVE API HELPERS
 // =====================================================
 async function sheetsAPI(endpoint, options = {}) {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}${endpoint}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...(options.headers || {}) }
-  });
-  if (res.status === 401) { showToast('Session expired. Please sign in again.', 'error'); handleLogout(); throw new Error('TOKEN_EXPIRED'); }
-  if (!res.ok) { const err = await res.text(); console.error('Sheets API error:', res.status, err); throw new Error(`Sheets API: ${res.status}`); }
-  return res.json();
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}${endpoint}`;
+    const res = await fetch(url, {
+        ...options,
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...(options.headers || {}) }
+    });
+    if (res.status === 401) {
+        showToast('Session expired. Please sign in again.', 'error');
+        handleLogout();
+        throw new Error('TOKEN_EXPIRED');
+    }
+    if (!res.ok) {
+        const err = await res.text();
+        console.error('Sheets API error:', res.status, err);
+        throw new Error(`Sheets API: ${res.status}`);
+    }
+    return res.json();
 }
 
 async function driveAPI(endpoint, options = {}) {
-  const url = `https://www.googleapis.com/drive/v3${endpoint}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...(options.headers || {}) }
-  });
-  if (!res.ok) throw new Error(`Drive API: ${res.status}`);
-  return res.json();
+    const url = `https://www.googleapis.com/drive/v3${endpoint}`;
+    const res = await fetch(url, {
+        ...options,
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...(options.headers || {}) }
+    });
+    if (!res.ok) throw new Error(`Drive API: ${res.status}`);
+    return res.json();
 }
 
 // =====================================================
 // SPREADSHEET SETUP
 // =====================================================
 async function setupSpreadsheet() {
-  const savedId = localStorage.getItem('et_spreadsheet_id');
-  if (savedId) {
-    try {
-      const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${savedId}?fields=spreadsheetId`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-      if (res.ok) { spreadsheetId = savedId; await ensureSheets(); return false; }
-    } catch(e) {}
-  }
-  try {
-    const searchRes = await driveAPI(`/files?q=name='${SPREADSHEET_NAME}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false&fields=files(id,name)&spaces=drive`);
-    if (searchRes.files && searchRes.files.length > 0) {
-      spreadsheetId = searchRes.files[0].id;
-      localStorage.setItem('et_spreadsheet_id', spreadsheetId);
-      await ensureSheets();
-      return false;
+    const savedId = localStorage.getItem('et_spreadsheet_id');
+    if (savedId) {
+        try {
+            const res = await fetch(
+                `https://sheets.googleapis.com/v4/spreadsheets/${savedId}?fields=spreadsheetId`,
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+            if (res.ok) {
+                spreadsheetId = savedId;
+                await ensureSheets();
+                return false;
+            }
+        } catch(e) {}
     }
-  } catch(e) { console.log('Drive search failed:', e); }
-  await createNewSpreadsheet();
-  return true;
+
+    try {
+        const searchRes = await driveAPI(
+            `/files?q=name='${SPREADSHEET_NAME}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false&fields=files(id,name)&spaces=drive`
+        );
+        if (searchRes.files && searchRes.files.length > 0) {
+            spreadsheetId = searchRes.files[0].id;
+            localStorage.setItem('et_spreadsheet_id', spreadsheetId);
+            await ensureSheets();
+            return false;
+        }
+    } catch(e) { console.log('Drive search failed:', e); }
+
+    await createNewSpreadsheet();
+    return true;
 }
 
 async function createNewSpreadsheet() {
-  showLoading('Creating your Expense Tracker sheet...');
-  const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      properties: { title: SPREADSHEET_NAME },
-      sheets: [
-        { properties: { title: 'DailyExpenses', index: 0 }, data: [{ startRow: 0, startColumn: 0, rowData: [{ values: DAILY_HEADERS.map(h => ({ userEnteredValue: { stringValue: h } })) }] }] },
-        { properties: { title: 'MonthlyExpenses', index: 1 }, data: [{ startRow: 0, startColumn: 0, rowData: [{ values: MONTHLY_HEADERS.map(h => ({ userEnteredValue: { stringValue: h } })) }] }] },
-        { properties: { title: 'Banks', index: 2 }, data: [{ startRow: 0, startColumn: 0, rowData: [{ values: BANKS_HEADERS.map(h => ({ userEnteredValue: { stringValue: h } })) }] }] },
-      ]
-    })
-  });
-  if (!res.ok) throw new Error('Failed to create spreadsheet');
-  const result = await res.json();
-  spreadsheetId = result.spreadsheetId;
-  localStorage.setItem('et_spreadsheet_id', spreadsheetId);
-  try {
-    const info = await sheetsAPI('?fields=sheets.properties');
-    const requests = info.sheets.map(sheet => ({
-      repeatCell: {
-        range: { sheetId: sheet.properties.sheetId, startRowIndex: 0, endRowIndex: 1 },
-        cell: { userEnteredFormat: {
-          backgroundColor: { red: 0.39, green: 0.4, blue: 0.95 },
-          textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } }
-        }},
-        fields: 'userEnteredFormat(backgroundColor,textFormat)'
-      }
-    }));
-    await sheetsAPI(':batchUpdate', { method: 'POST', body: JSON.stringify({ requests }) });
-  } catch(e) {}
-  hideLoading();
+    showLoading('Creating your Expense Tracker sheet...');
+    const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            properties: { title: SPREADSHEET_NAME },
+            sheets: [
+                { properties: { title: 'DailyExpenses', index: 0 }, data: [{ startRow: 0, startColumn: 0, rowData: [{ values: DAILY_HEADERS.map(h => ({ userEnteredValue: { stringValue: h } })) }] }] },
+                { properties: { title: 'MonthlyExpenses', index: 1 }, data: [{ startRow: 0, startColumn: 0, rowData: [{ values: MONTHLY_HEADERS.map(h => ({ userEnteredValue: { stringValue: h } })) }] }] },
+                { properties: { title: 'Banks', index: 2 }, data: [{ startRow: 0, startColumn: 0, rowData: [{ values: BANKS_HEADERS.map(h => ({ userEnteredValue: { stringValue: h } })) }] }] },
+            ]
+        })
+    });
+    if (!res.ok) throw new Error('Failed to create spreadsheet');
+    const result = await res.json();
+    spreadsheetId = result.spreadsheetId;
+    localStorage.setItem('et_spreadsheet_id', spreadsheetId);
+
+    try {
+        const info = await sheetsAPI('?fields=sheets.properties');
+        const requests = info.sheets.map(sheet => ({
+            repeatCell: {
+                range: { sheetId: sheet.properties.sheetId, startRowIndex: 0, endRowIndex: 1 },
+                cell: { userEnteredFormat: {
+                    backgroundColor: { red: 0.39, green: 0.4, blue: 0.95 },
+                    textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } }
+                }},
+                fields: 'userEnteredFormat(backgroundColor,textFormat)'
+            }
+        }));
+        await sheetsAPI(':batchUpdate', { method: 'POST', body: JSON.stringify({ requests }) });
+    } catch(e) {}
+    hideLoading();
 }
 
 async function ensureSheets() {
-  try {
-    const info = await sheetsAPI('?fields=sheets.properties.title');
-    const existing = info.sheets.map(s => s.properties.title);
-    const requests = [], sheetsToAdd = [];
-    if (!existing.includes('DailyExpenses')) { requests.push({ addSheet: { properties: { title: 'DailyExpenses' } } }); sheetsToAdd.push({ name: 'DailyExpenses', headers: DAILY_HEADERS }); }
-    if (!existing.includes('MonthlyExpenses')) { requests.push({ addSheet: { properties: { title: 'MonthlyExpenses' } } }); sheetsToAdd.push({ name: 'MonthlyExpenses', headers: MONTHLY_HEADERS }); }
-    if (!existing.includes('Banks')) { requests.push({ addSheet: { properties: { title: 'Banks' } } }); sheetsToAdd.push({ name: 'Banks', headers: BANKS_HEADERS }); }
-    if (requests.length > 0) {
-      await sheetsAPI(':batchUpdate', { method: 'POST', body: JSON.stringify({ requests }) });
-      for (const s of sheetsToAdd) {
-        await sheetsAPI(`/values/${s.name}!A1:${colLetter(s.headers.length)}1?valueInputOption=RAW`, { method: 'PUT', body: JSON.stringify({ values: [s.headers] }) });
-      }
-    }
-  } catch(e) { console.error('ensureSheets error:', e); }
+    try {
+        const info = await sheetsAPI('?fields=sheets.properties.title');
+        const existing = info.sheets.map(s => s.properties.title);
+        const requests = [], sheetsToAdd = [];
+        if (!existing.includes('DailyExpenses')) { requests.push({ addSheet: { properties: { title: 'DailyExpenses' } } }); sheetsToAdd.push({ name: 'DailyExpenses', headers: DAILY_HEADERS }); }
+        if (!existing.includes('MonthlyExpenses')) { requests.push({ addSheet: { properties: { title: 'MonthlyExpenses' } } }); sheetsToAdd.push({ name: 'MonthlyExpenses', headers: MONTHLY_HEADERS }); }
+        if (!existing.includes('Banks')) { requests.push({ addSheet: { properties: { title: 'Banks' } } }); sheetsToAdd.push({ name: 'Banks', headers: BANKS_HEADERS }); }
+        if (requests.length > 0) {
+            await sheetsAPI(':batchUpdate', { method: 'POST', body: JSON.stringify({ requests }) });
+            for (const s of sheetsToAdd) {
+                await sheetsAPI(`/values/${s.name}!A1:${colLetter(s.headers.length)}1?valueInputOption=RAW`,
+                    { method: 'PUT', body: JSON.stringify({ values: [s.headers] }) });
+            }
+        }
+    } catch(e) { console.error('ensureSheets error:', e); }
 }
 
 // =====================================================
@@ -812,73 +889,75 @@ function generateId() { return 'ET'+Date.now().toString(36)+Math.random().toStri
 // DATA OPERATIONS
 // =====================================================
 async function appendRow(sheet, values) {
-  setSyncing(true);
-  try {
-    await sheetsAPI(`/values/${sheet}!A:A:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { method: 'POST', body: JSON.stringify({ values: [values] }) });
-    setSyncing(false); return true;
-  } catch(e) { setSyncing(false); showToast('Save failed','error'); return false; }
+    setSyncing(true);
+    try {
+        await sheetsAPI(`/values/${sheet}!A:A:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+            { method: 'POST', body: JSON.stringify({ values: [values] }) });
+        setSyncing(false); return true;
+    } catch(e) { setSyncing(false); showToast('Save failed','error'); return false; }
 }
 
 async function updateRow(sheet, row, values, cols) {
-  setSyncing(true);
-  try {
-    await sheetsAPI(`/values/${sheet}!A${row}:${colLetter(cols)}${row}?valueInputOption=RAW`, { method: 'PUT', body: JSON.stringify({ values: [values] }) });
-    setSyncing(false); return true;
-  } catch(e) { setSyncing(false); showToast('Update failed','error'); return false; }
+    setSyncing(true);
+    try {
+        await sheetsAPI(`/values/${sheet}!A${row}:${colLetter(cols)}${row}?valueInputOption=RAW`,
+            { method: 'PUT', body: JSON.stringify({ values: [values] }) });
+        setSyncing(false); return true;
+    } catch(e) { setSyncing(false); showToast('Update failed','error'); return false; }
 }
 
 async function deleteRow(sheet, row) {
-  setSyncing(true);
-  try {
-    const info = await sheetsAPI('?fields=sheets.properties');
-    const s = info.sheets.find(x => x.properties.title === sheet);
-    if (!s) throw new Error('Sheet not found');
-    await sheetsAPI(':batchUpdate', { method: 'POST', body: JSON.stringify({
-      requests: [{ deleteDimension: { range: { sheetId: s.properties.sheetId, dimension: 'ROWS', startIndex: row-1, endIndex: row } } }]
-    })});
-    setSyncing(false); return true;
-  } catch(e) { setSyncing(false); showToast('Delete failed','error'); return false; }
+    setSyncing(true);
+    try {
+        const info = await sheetsAPI('?fields=sheets.properties');
+        const s = info.sheets.find(x => x.properties.title === sheet);
+        if (!s) throw new Error('Sheet not found');
+        await sheetsAPI(':batchUpdate', { method: 'POST', body: JSON.stringify({
+            requests: [{ deleteDimension: { range: { sheetId: s.properties.sheetId, dimension: 'ROWS', startIndex: row-1, endIndex: row } } }]
+        })});
+        setSyncing(false); return true;
+    } catch(e) { setSyncing(false); showToast('Delete failed','error'); return false; }
 }
 
 async function fetchDailyExpenses() {
-  setSyncing(true);
-  try {
-    const res = await sheetsAPI('/values/DailyExpenses!A2:J10000');
-    dailyExpenses = (res.values||[]).map((r,i) => ({
-      _row: i+2, id: r[0]||'', date: r[1]||'', type: r[2]||'Expense',
-      category: r[3]||'', description: r[4]||'', amount: parseFloat(r[5])||0,
-      bank: r[6]||'', paymentMode: r[7]||'', notes: r[8]||'', createdAt: r[9]||''
-    }));
-    localStorage.setItem('dailyExpenses_cache', JSON.stringify(dailyExpenses));
-  } catch(e) { const c=localStorage.getItem('dailyExpenses_cache'); if(c) dailyExpenses=JSON.parse(c); }
-  setSyncing(false); renderDaily(); renderDashboard(); renderYearly();
+    setSyncing(true);
+    try {
+        const res = await sheetsAPI('/values/DailyExpenses!A2:J10000');
+        dailyExpenses = (res.values||[]).map((r,i) => ({
+            _row: i+2, id: r[0]||'', date: r[1]||'', type: r[2]||'Expense',
+            category: r[3]||'', description: r[4]||'', amount: parseFloat(r[5])||0,
+            bank: r[6]||'', paymentMode: r[7]||'', notes: r[8]||'', createdAt: r[9]||''
+        }));
+        localStorage.setItem('dailyExpenses_cache', JSON.stringify(dailyExpenses));
+    } catch(e) { const c=localStorage.getItem('dailyExpenses_cache'); if(c) dailyExpenses=JSON.parse(c); }
+    setSyncing(false); renderDaily(); renderDashboard(); renderYearly();
 }
 
 async function fetchMonthlyExpenses() {
-  setSyncing(true);
-  try {
-    const res = await sheetsAPI('/values/MonthlyExpenses!A2:L10000');
-    monthlyExpenses = (res.values||[]).map((r,i) => ({
-      _row: i+2, id: r[0]||'', month: parseInt(r[1])||0, year: parseInt(r[2])||0,
-      category: r[3]||'', description: r[4]||'', amount: parseFloat(r[5])||0,
-      bank: r[6]||'', paymentMode: r[7]||'', dueDate: r[8]||'',
-      recurring: r[9]||'No', status: r[10]||'Pending', createdAt: r[11]||''
-    }));
-    localStorage.setItem('monthlyExpenses_cache', JSON.stringify(monthlyExpenses));
-  } catch(e) { const c=localStorage.getItem('monthlyExpenses_cache'); if(c) monthlyExpenses=JSON.parse(c); }
-  setSyncing(false); renderMonthly(); renderDashboard(); renderYearly();
+    setSyncing(true);
+    try {
+        const res = await sheetsAPI('/values/MonthlyExpenses!A2:L10000');
+        monthlyExpenses = (res.values||[]).map((r,i) => ({
+            _row: i+2, id: r[0]||'', month: parseInt(r[1])||0, year: parseInt(r[2])||0,
+            category: r[3]||'', description: r[4]||'', amount: parseFloat(r[5])||0,
+            bank: r[6]||'', paymentMode: r[7]||'', dueDate: r[8]||'',
+            recurring: r[9]||'No', status: r[10]||'Pending', createdAt: r[11]||''
+        }));
+        localStorage.setItem('monthlyExpenses_cache', JSON.stringify(monthlyExpenses));
+    } catch(e) { const c=localStorage.getItem('monthlyExpenses_cache'); if(c) monthlyExpenses=JSON.parse(c); }
+    setSyncing(false); renderMonthly(); renderDashboard(); renderYearly();
 }
 
 async function fetchBanks() {
-  setSyncing(true);
-  try {
-    const res = await sheetsAPI('/values/Banks!A2:D10000');
-    banks = (res.values||[]).map((r,i) => ({
-      _row: i+2, id: r[0]||'', name: r[1]||'', balance: parseFloat(r[2])||0, createdAt: r[3]||''
-    }));
-    localStorage.setItem('banks_cache', JSON.stringify(banks));
-  } catch(e) { const c=localStorage.getItem('banks_cache'); if(c) banks=JSON.parse(c); }
-  setSyncing(false); renderBanks(); populateBankSelects();
+    setSyncing(true);
+    try {
+        const res = await sheetsAPI('/values/Banks!A2:D10000');
+        banks = (res.values||[]).map((r,i) => ({
+            _row: i+2, id: r[0]||'', name: r[1]||'', balance: parseFloat(r[2])||0, createdAt: r[3]||''
+        }));
+        localStorage.setItem('banks_cache', JSON.stringify(banks));
+    } catch(e) { const c=localStorage.getItem('banks_cache'); if(c) banks=JSON.parse(c); }
+    setSyncing(false); renderBanks(); populateBankSelects();
 }
 
 // =====================================================
@@ -886,9 +965,9 @@ async function fetchBanks() {
 // =====================================================
 function setSyncing(s) { document.getElementById('sync-bar').className = s ? 'sync-bar syncing' : 'sync-bar'; }
 function showToast(m, t='', duration=3000) {
-  const e = document.getElementById('toast');
-  e.textContent = m; e.className = `toast ${t} show`;
-  setTimeout(() => e.className = 'toast', duration);
+    const e = document.getElementById('toast');
+    e.textContent = m; e.className = `toast ${t} show`;
+    setTimeout(() => e.className = 'toast', duration);
 }
 function showLoading(t='Loading...') { document.getElementById('loading-text').textContent=t; document.getElementById('loading-overlay').classList.add('active'); }
 function hideLoading() { document.getElementById('loading-overlay').classList.remove('active'); }
@@ -896,75 +975,75 @@ function fmt(a) { return '₹'+Number(a||0).toLocaleString('en-IN'); }
 function fmtDate(d) { if(!d)return ''; return new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}); }
 
 function switchScreen(screen, nav) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-'+screen).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  if (nav) nav.classList.add('active');
-  currentScreen = screen;
-  document.getElementById('fab-btn').style.display = ['daily','monthly','banks'].includes(screen) ? 'flex' : 'none';
-  if(screen==='dashboard') renderDashboard();
-  if(screen==='daily') renderDaily();
-  if(screen==='monthly') renderMonthly();
-  if(screen==='yearly') renderYearly();
-  if(screen==='banks') renderBanks();
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-'+screen).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    if (nav) nav.classList.add('active');
+    currentScreen = screen;
+    document.getElementById('fab-btn').style.display = ['daily','monthly','banks'].includes(screen) ? 'flex' : 'none';
+    if(screen==='dashboard') renderDashboard();
+    if(screen==='daily') renderDaily();
+    if(screen==='monthly') renderMonthly();
+    if(screen==='yearly') renderYearly();
+    if(screen==='banks') renderBanks();
 }
 
 function populateCategories() {
-  const cats = currentType === 'Expense' ? EXPENSE_CATS : INCOME_CATS;
-  document.getElementById('form-category').innerHTML = '<option value="">Select</option>' + cats.map(x=>`<option value="${x}">${x}</option>`).join('');
+    const cats = currentType === 'Expense' ? EXPENSE_CATS : INCOME_CATS;
+    document.getElementById('form-category').innerHTML = '<option value="">Select</option>' + cats.map(x=>`<option value="${x}">${x}</option>`).join('');
 }
 function populateMonthlyCategories() {
-  document.getElementById('mform-category').innerHTML = '<option value="">Select</option>' + EXPENSE_CATS.map(c=>`<option value="${c}">${c}</option>`).join('');
+    document.getElementById('mform-category').innerHTML = '<option value="">Select</option>' + EXPENSE_CATS.map(c=>`<option value="${c}">${c}</option>`).join('');
 }
 function populateBankSelects() {
-  ['form-bank','mform-bank'].forEach(id => {
-    const s = document.getElementById(id);
-    if (s) s.innerHTML = '<option value="">Select</option>' + banks.map(b=>`<option value="${b.name}">${b.name}</option>`).join('');
-  });
+    ['form-bank','mform-bank'].forEach(id => {
+        const s = document.getElementById(id);
+        if (s) s.innerHTML = '<option value="">Select</option>' + banks.map(b=>`<option value="${b.name}">${b.name}</option>`).join('');
+    });
 }
 function setType(t) {
-  currentType = t;
-  document.getElementById('type-expense-btn').classList.toggle('active', t==='Expense');
-  document.getElementById('type-income-btn').classList.toggle('active', t==='Income');
-  populateCategories();
+    currentType = t;
+    document.getElementById('type-expense-btn').classList.toggle('active', t==='Expense');
+    document.getElementById('type-income-btn').classList.toggle('active', t==='Income');
+    populateCategories();
 }
 
 // =====================================================
 // DAILY CRUD
 // =====================================================
 function openAddModal() {
-  if (currentScreen === 'daily') {
-    editingDailyRow = null;
-    document.getElementById('daily-modal-title').textContent = 'Add Transaction';
-    document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
-    document.getElementById('form-category').value = '';
-    document.getElementById('form-description').value = '';
-    document.getElementById('form-amount').value = '';
-    document.getElementById('form-bank').value = '';
-    document.getElementById('form-payment').value = 'UPI';
-    document.getElementById('form-notes').value = '';
-    setType('Expense');
-    populateBankSelects();
-    document.getElementById('daily-modal').classList.add('active');
-  } else if (currentScreen === 'monthly') {
-    editingMonthlyRow = null;
-    document.getElementById('monthly-modal-title').textContent = 'Add Monthly Expense';
-    document.getElementById('mform-category').value = '';
-    document.getElementById('mform-description').value = '';
-    document.getElementById('mform-amount').value = '';
-    document.getElementById('mform-bank').value = '';
-    document.getElementById('mform-payment').value = 'UPI';
-    document.getElementById('mform-duedate').value = '';
-    document.getElementById('mform-recurring').value = 'Yes';
-    document.getElementById('mform-status').value = 'Pending';
-    populateMonthlyCategories();
-    populateBankSelects();
-    document.getElementById('monthly-modal').classList.add('active');
-  } else if (currentScreen === 'banks') {
-    document.getElementById('bank-form-name').value = '';
-    document.getElementById('bank-form-balance').value = '';
-    document.getElementById('bank-modal').classList.add('active');
-  }
+    if (currentScreen === 'daily') {
+        editingDailyRow = null;
+        document.getElementById('daily-modal-title').textContent = 'Add Transaction';
+        document.getElementById('form-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('form-category').value = '';
+        document.getElementById('form-description').value = '';
+        document.getElementById('form-amount').value = '';
+        document.getElementById('form-bank').value = '';
+        document.getElementById('form-payment').value = 'UPI';
+        document.getElementById('form-notes').value = '';
+        setType('Expense');
+        populateBankSelects();
+        document.getElementById('daily-modal').classList.add('active');
+    } else if (currentScreen === 'monthly') {
+        editingMonthlyRow = null;
+        document.getElementById('monthly-modal-title').textContent = 'Add Monthly Expense';
+        document.getElementById('mform-category').value = '';
+        document.getElementById('mform-description').value = '';
+        document.getElementById('mform-amount').value = '';
+        document.getElementById('mform-bank').value = '';
+        document.getElementById('mform-payment').value = 'UPI';
+        document.getElementById('mform-duedate').value = '';
+        document.getElementById('mform-recurring').value = 'Yes';
+        document.getElementById('mform-status').value = 'Pending';
+        populateMonthlyCategories();
+        populateBankSelects();
+        document.getElementById('monthly-modal').classList.add('active');
+    } else if (currentScreen === 'banks') {
+        document.getElementById('bank-form-name').value = '';
+        document.getElementById('bank-form-balance').value = '';
+        document.getElementById('bank-modal').classList.add('active');
+    }
 }
 
 function closeDailyModal() { document.getElementById('daily-modal').classList.remove('active'); }
@@ -972,83 +1051,86 @@ function closeMonthlyModal() { document.getElementById('monthly-modal').classLis
 function closeBankModal() { document.getElementById('bank-modal').classList.remove('active'); }
 
 async function saveDaily() {
-  const d = document.getElementById('form-date').value;
-  const cat = document.getElementById('form-category').value;
-  const desc = document.getElementById('form-description').value;
-  const amt = parseFloat(document.getElementById('form-amount').value) || 0;
-  const bank = document.getElementById('form-bank').value;
-  const pm = document.getElementById('form-payment').value;
-  const notes= document.getElementById('form-notes').value;
-  if (!d || !cat || !amt) { showToast('Fill date, category & amount','error'); return; }
-  const btn = document.getElementById('daily-save-btn');
-  btn.disabled = true; btn.textContent = 'Saving...';
-  let ok;
-  if (editingDailyRow) {
-    const ex = dailyExpenses.find(e => e._row === editingDailyRow);
-    ok = await updateRow('DailyExpenses', editingDailyRow,
-      [ex?ex.id:generateId(), d, currentType, cat, desc, amt.toString(), bank, pm, notes, ex?ex.createdAt:new Date().toISOString()],
-      DAILY_HEADERS.length);
-  } else {
-    ok = await appendRow('DailyExpenses', [generateId(), d, currentType, cat, desc, amt.toString(), bank, pm, notes, new Date().toISOString()]);
-  }
-  btn.disabled = false; btn.textContent = 'Save';
-  if (ok) { showToast(editingDailyRow ? 'Updated!' : 'Added!', 'success'); closeDailyModal(); await fetchDailyExpenses(); }
+    const d = document.getElementById('form-date').value;
+    const cat = document.getElementById('form-category').value;
+    const desc = document.getElementById('form-description').value;
+    const amt = parseFloat(document.getElementById('form-amount').value) || 0;
+    const bank = document.getElementById('form-bank').value;
+    const pm = document.getElementById('form-payment').value;
+    const notes = document.getElementById('form-notes').value;
+
+    if (!d || !cat || !amt) { showToast('Fill date, category & amount','error'); return; }
+
+    const btn = document.getElementById('daily-save-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    let ok;
+    if (editingDailyRow) {
+        const ex = dailyExpenses.find(e => e._row === editingDailyRow);
+        ok = await updateRow('DailyExpenses', editingDailyRow,
+            [ex?ex.id:generateId(), d, currentType, cat, desc, amt.toString(), bank, pm, notes, ex?ex.createdAt:new Date().toISOString()],
+            DAILY_HEADERS.length);
+    } else {
+        ok = await appendRow('DailyExpenses', [generateId(), d, currentType, cat, desc, amt.toString(), bank, pm, notes, new Date().toISOString()]);
+    }
+    btn.disabled = false; btn.textContent = 'Save';
+    if (ok) { showToast(editingDailyRow ? 'Updated!' : 'Added!', 'success'); closeDailyModal(); await fetchDailyExpenses(); }
 }
 
 async function editDaily(row) {
-  const e = dailyExpenses.find(x => x._row === row);
-  if (!e) return;
-  editingDailyRow = row;
-  document.getElementById('daily-modal-title').textContent = 'Edit Transaction';
-  setType(e.type || 'Expense');
-  populateBankSelects();
-  document.getElementById('form-date').value = e.date;
-  document.getElementById('form-category').value = e.category;
-  document.getElementById('form-description').value = e.description || '';
-  document.getElementById('form-amount').value = e.amount;
-  document.getElementById('form-bank').value = e.bank || '';
-  document.getElementById('form-payment').value = e.paymentMode || 'UPI';
-  document.getElementById('form-notes').value = e.notes || '';
-  document.getElementById('daily-modal').classList.add('active');
+    const e = dailyExpenses.find(x => x._row === row);
+    if (!e) return;
+    editingDailyRow = row;
+    document.getElementById('daily-modal-title').textContent = 'Edit Transaction';
+    setType(e.type || 'Expense');
+    populateBankSelects();
+    document.getElementById('form-date').value = e.date;
+    document.getElementById('form-category').value = e.category;
+    document.getElementById('form-description').value = e.description || '';
+    document.getElementById('form-amount').value = e.amount;
+    document.getElementById('form-bank').value = e.bank || '';
+    document.getElementById('form-payment').value = e.paymentMode || 'UPI';
+    document.getElementById('form-notes').value = e.notes || '';
+    document.getElementById('daily-modal').classList.add('active');
 }
 
 async function deleteDaily(row) {
-  if (!confirm('Delete this transaction?')) return;
-  if (await deleteRow('DailyExpenses', row)) { showToast('Deleted!','success'); await fetchDailyExpenses(); }
+    if (!confirm('Delete this transaction?')) return;
+    if (await deleteRow('DailyExpenses', row)) { showToast('Deleted!','success'); await fetchDailyExpenses(); }
 }
 
 function renderDaily() {
-  const f = document.getElementById('daily-date-filter').value;
-  let filtered = [...dailyExpenses].sort((a,b) => new Date(b.date)-new Date(a.date));
-  if (f) filtered = filtered.filter(e => e.date === f);
-  const c = document.getElementById('daily-list');
-  if (!filtered.length) { c.innerHTML='<div class="empty-state"><p>No transactions found</p><p style="font-size:12px;margin-top:4px;">Tap + to add one</p></div>'; return; }
-  const g = {};
-  filtered.forEach(e => { if(!g[e.date]) g[e.date]=[]; g[e.date].push(e); });
-  let h = '';
-  Object.keys(g).sort((a,b)=>new Date(b)-new Date(a)).forEach(date => {
-    const net = g[date].reduce((s,e) => s+(e.type==='Income'?e.amount:-e.amount), 0);
-    h += `<div class="card"><div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-      <span style="font-weight:600;font-size:12px;">${fmtDate(date)}</span>
-      <span style="font-weight:600;font-size:12px;color:${net>=0?'var(--income)':'var(--expense)'}">
-      ${net>=0?'+':''}${fmt(net)}</span></div>`;
-    g[date].forEach(e => {
-      const isI = e.type === 'Income';
-      h += `<div class="expense-item">
-        <div class="expense-info">
-          <div class="expense-category">${e.category}</div>
-          <div class="expense-desc">${e.description||''}</div>
-          <div class="expense-meta">${e.bank||''} ${e.paymentMode?'• '+e.paymentMode:''}</div>
-        </div>
-        <span class="expense-amount ${isI?'income':'expense'}">${isI?'+':'-'}${fmt(e.amount)}</span>
-        <div class="expense-actions">
-          <button class="action-btn edit" onclick="editDaily(${e._row})">✎</button>
-          <button class="action-btn delete" onclick="deleteDaily(${e._row})">✕</button>
-        </div></div>`;
+    const f = document.getElementById('daily-date-filter').value;
+    let filtered = [...dailyExpenses].sort((a,b) => new Date(b.date)-new Date(a.date));
+    if (f) filtered = filtered.filter(e => e.date === f);
+    const c = document.getElementById('daily-list');
+    if (!filtered.length) { c.innerHTML='<div class="empty-state"><p>No transactions found</p><p style="font-size:12px;margin-top:4px;">Tap + to add one</p></div>'; return; }
+    const g = {};
+    filtered.forEach(e => { if(!g[e.date]) g[e.date]=[]; g[e.date].push(e); });
+    let h = '';
+    Object.keys(g).sort((a,b)=>new Date(b)-new Date(a)).forEach(date => {
+        const net = g[date].reduce((s,e) => s+(e.type==='Income'?e.amount:-e.amount), 0);
+        h += `<div class="card"><div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-weight:600;font-size:12px;">${fmtDate(date)}</span>
+            <span style="font-weight:600;font-size:12px;color:${net>=0?'var(--income)':'var(--expense)'}">
+            ${net>=0?'+':''}${fmt(net)}</span></div>`;
+        g[date].forEach(e => {
+            const isI = e.type === 'Income';
+            h += `<div class="expense-item">
+                <div class="expense-info">
+                    <div class="expense-category">${e.category}</div>
+                    <div class="expense-desc">${e.description||''}</div>
+                    <div class="expense-meta">${e.bank||''} ${e.paymentMode?'• '+e.paymentMode:''}</div>
+                </div>
+                <span class="expense-amount ${isI?'income':'expense'}">${isI?'+':'-'}${fmt(e.amount)}</span>
+                <div class="expense-actions">
+                    <button class="action-btn edit" onclick="editDaily(${e._row})">✎</button>
+                    <button class="action-btn delete" onclick="deleteDaily(${e._row})">✕</button>
+                </div></div>`;
+        });
+        h += '</div>';
     });
-    h += '</div>';
-  });
-  c.innerHTML = h;
+    c.innerHTML = h;
 }
 
 // =====================================================
@@ -1056,127 +1138,129 @@ function renderDaily() {
 // =====================================================
 function changeMonth(d) { viewMonth+=d; if(viewMonth>11){viewMonth=0;viewYear++} if(viewMonth<0){viewMonth=11;viewYear--} renderMonthly(); }
 function filterMonthly(s, b) {
-  monthlyStatusFilter = s;
-  document.querySelectorAll('#screen-monthly .tab-btn').forEach(x => x.classList.remove('active'));
-  b.classList.add('active');
-  renderMonthly();
+    monthlyStatusFilter = s;
+    document.querySelectorAll('#screen-monthly .tab-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    renderMonthly();
 }
 
 async function saveMonthly() {
-  const cat = document.getElementById('mform-category').value;
-  const desc = document.getElementById('mform-description').value;
-  const amt = parseFloat(document.getElementById('mform-amount').value) || 0;
-  const bank = document.getElementById('mform-bank').value;
-  const pm = document.getElementById('mform-payment').value;
-  const due = document.getElementById('mform-duedate').value;
-  const rec = document.getElementById('mform-recurring').value;
-  const st = document.getElementById('mform-status').value;
-  if (!cat || !amt) { showToast('Fill category & amount','error'); return; }
-  const btn = document.getElementById('monthly-save-btn');
-  btn.disabled = true; btn.textContent = 'Saving...';
-  let ok;
-  if (editingMonthlyRow) {
-    const ex = monthlyExpenses.find(e => e._row === editingMonthlyRow);
-    ok = await updateRow('MonthlyExpenses', editingMonthlyRow,
-      [ex?ex.id:generateId(), viewMonth.toString(), viewYear.toString(), cat, desc, amt.toString(), bank, pm, due, rec, st, ex?ex.createdAt:new Date().toISOString()],
-      MONTHLY_HEADERS.length);
-  } else {
-    ok = await appendRow('MonthlyExpenses', [generateId(), viewMonth.toString(), viewYear.toString(), cat, desc, amt.toString(), bank, pm, due, rec, st, new Date().toISOString()]);
-  }
-  btn.disabled = false; btn.textContent = 'Save';
-  if (ok) { showToast(editingMonthlyRow?'Updated!':'Added!','success'); closeMonthlyModal(); await fetchMonthlyExpenses(); }
+    const cat = document.getElementById('mform-category').value;
+    const desc = document.getElementById('mform-description').value;
+    const amt = parseFloat(document.getElementById('mform-amount').value) || 0;
+    const bank = document.getElementById('mform-bank').value;
+    const pm = document.getElementById('mform-payment').value;
+    const due = document.getElementById('mform-duedate').value;
+    const rec = document.getElementById('mform-recurring').value;
+    const st = document.getElementById('mform-status').value;
+    if (!cat || !amt) { showToast('Fill category & amount','error'); return; }
+
+    const btn = document.getElementById('monthly-save-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    let ok;
+    if (editingMonthlyRow) {
+        const ex = monthlyExpenses.find(e => e._row === editingMonthlyRow);
+        ok = await updateRow('MonthlyExpenses', editingMonthlyRow,
+            [ex?ex.id:generateId(), viewMonth.toString(), viewYear.toString(), cat, desc, amt.toString(), bank, pm, due, rec, st, ex?ex.createdAt:new Date().toISOString()],
+            MONTHLY_HEADERS.length);
+    } else {
+        ok = await appendRow('MonthlyExpenses', [generateId(), viewMonth.toString(), viewYear.toString(), cat, desc, amt.toString(), bank, pm, due, rec, st, new Date().toISOString()]);
+    }
+    btn.disabled = false; btn.textContent = 'Save';
+    if (ok) { showToast(editingMonthlyRow?'Updated!':'Added!','success'); closeMonthlyModal(); await fetchMonthlyExpenses(); }
 }
 
 async function editMonthly(row) {
-  const e = monthlyExpenses.find(x => x._row === row);
-  if (!e) return;
-  editingMonthlyRow = row;
-  document.getElementById('monthly-modal-title').textContent = 'Edit Monthly Expense';
-  populateMonthlyCategories(); populateBankSelects();
-  document.getElementById('mform-category').value = e.category;
-  document.getElementById('mform-description').value = e.description || '';
-  document.getElementById('mform-amount').value = e.amount;
-  document.getElementById('mform-bank').value = e.bank || '';
-  document.getElementById('mform-payment').value = e.paymentMode || 'UPI';
-  document.getElementById('mform-duedate').value = e.dueDate || '';
-  document.getElementById('mform-recurring').value = e.recurring || 'No';
-  document.getElementById('mform-status').value = e.status || 'Pending';
-  document.getElementById('monthly-modal').classList.add('active');
+    const e = monthlyExpenses.find(x => x._row === row);
+    if (!e) return;
+    editingMonthlyRow = row;
+    document.getElementById('monthly-modal-title').textContent = 'Edit Monthly Expense';
+    populateMonthlyCategories(); populateBankSelects();
+    document.getElementById('mform-category').value = e.category;
+    document.getElementById('mform-description').value = e.description || '';
+    document.getElementById('mform-amount').value = e.amount;
+    document.getElementById('mform-bank').value = e.bank || '';
+    document.getElementById('mform-payment').value = e.paymentMode || 'UPI';
+    document.getElementById('mform-duedate').value = e.dueDate || '';
+    document.getElementById('mform-recurring').value = e.recurring || 'No';
+    document.getElementById('mform-status').value = e.status || 'Pending';
+    document.getElementById('monthly-modal').classList.add('active');
 }
 
 async function deleteMonthly(row) {
-  if (!confirm('Delete this monthly expense?')) return;
-  if (await deleteRow('MonthlyExpenses', row)) { showToast('Deleted!','success'); await fetchMonthlyExpenses(); }
+    if (!confirm('Delete this monthly expense?')) return;
+    if (await deleteRow('MonthlyExpenses', row)) { showToast('Deleted!','success'); await fetchMonthlyExpenses(); }
 }
 
 async function toggleMonthlyStatus(row) {
-  const e = monthlyExpenses.find(x => x._row === row);
-  if (!e) return;
-  const ns = e.status === 'Paid' ? 'Pending' : 'Paid';
-  if (await updateRow('MonthlyExpenses', row,
-    [e.id, e.month.toString(), e.year.toString(), e.category, e.description, e.amount.toString(), e.bank, e.paymentMode, e.dueDate, e.recurring, ns, e.createdAt],
-    MONTHLY_HEADERS.length)) {
-    showToast(`Marked as ${ns}`, 'success'); await fetchMonthlyExpenses();
-  }
+    const e = monthlyExpenses.find(x => x._row === row);
+    if (!e) return;
+    const ns = e.status === 'Paid' ? 'Pending' : 'Paid';
+    if (await updateRow('MonthlyExpenses', row,
+        [e.id, e.month.toString(), e.year.toString(), e.category, e.description, e.amount.toString(), e.bank, e.paymentMode, e.dueDate, e.recurring, ns, e.createdAt],
+        MONTHLY_HEADERS.length)) {
+        showToast(`Marked as ${ns}`, 'success'); await fetchMonthlyExpenses();
+    }
 }
 
 function renderMonthly() {
-  document.getElementById('month-label').textContent = `${MONTHS[viewMonth]} ${viewYear}`;
-  let f = monthlyExpenses.filter(e => Number(e.month)===viewMonth && Number(e.year)===viewYear);
-  document.getElementById('monthly-total').textContent = fmt(f.reduce((s,e)=>s+e.amount,0));
-  document.getElementById('monthly-pending').textContent = fmt(f.filter(e=>e.status==='Pending').reduce((s,e)=>s+e.amount,0));
-  if (monthlyStatusFilter !== 'All') f = f.filter(e => e.status === monthlyStatusFilter);
-  const c = document.getElementById('monthly-list');
-  if (!f.length) { c.innerHTML='<div class="empty-state"><p>No monthly expenses</p><p style="font-size:12px;margin-top:4px;">Tap + to add one</p></div>'; return; }
-  c.innerHTML = f.map(e => `
-    <div class="card"><div class="expense-item" style="border-bottom:none;">
-      <div class="expense-info">
-        <div class="expense-category">${e.category}</div>
-        <div class="expense-desc">${e.description||''}</div>
-        <div class="expense-meta">${e.bank||''} ${e.paymentMode?'• '+e.paymentMode:''} ${e.dueDate?'• Due: '+e.dueDate:''}</div>
-        <div style="margin-top:4px;">
-          <span class="status-badge ${e.status==='Paid'?'paid':'pending'}">${e.status}</span>
-          ${e.recurring==='Yes'?'<span class="recurring-badge">Recurring</span>':''}
-        </div>
-      </div>
-      <span class="expense-amount expense">${fmt(e.amount)}</span>
-      <div class="expense-actions">
-        <button class="action-btn status-toggle" onclick="toggleMonthlyStatus(${e._row})">${e.status==='Paid'?'✓':'○'}</button>
-        <button class="action-btn edit" onclick="editMonthly(${e._row})">✎</button>
-        <button class="action-btn delete" onclick="deleteMonthly(${e._row})">✕</button>
-      </div>
-    </div></div>`).join('');
+    document.getElementById('month-label').textContent = `${MONTHS[viewMonth]} ${viewYear}`;
+    let f = monthlyExpenses.filter(e => Number(e.month)===viewMonth && Number(e.year)===viewYear);
+    document.getElementById('monthly-total').textContent = fmt(f.reduce((s,e)=>s+e.amount,0));
+    document.getElementById('monthly-pending').textContent = fmt(f.filter(e=>e.status==='Pending').reduce((s,e)=>s+e.amount,0));
+    if (monthlyStatusFilter !== 'All') f = f.filter(e => e.status === monthlyStatusFilter);
+    const c = document.getElementById('monthly-list');
+    if (!f.length) { c.innerHTML='<div class="empty-state"><p>No monthly expenses</p><p style="font-size:12px;margin-top:4px;">Tap + to add one</p></div>'; return; }
+    c.innerHTML = f.map(e => `
+        <div class="card"><div class="expense-item" style="border-bottom:none;">
+            <div class="expense-info">
+                <div class="expense-category">${e.category}</div>
+                <div class="expense-desc">${e.description||''}</div>
+                <div class="expense-meta">${e.bank||''} ${e.paymentMode?'• '+e.paymentMode:''} ${e.dueDate?'• Due: '+e.dueDate:''}</div>
+                <div style="margin-top:4px;">
+                    <span class="status-badge ${e.status==='Paid'?'paid':'pending'}">${e.status}</span>
+                    ${e.recurring==='Yes'?'<span class="recurring-badge">Recurring</span>':''}
+                </div>
+            </div>
+            <span class="expense-amount expense">${fmt(e.amount)}</span>
+            <div class="expense-actions">
+                <button class="action-btn status-toggle" onclick="toggleMonthlyStatus(${e._row})">${e.status==='Paid'?'✓':'○'}</button>
+                <button class="action-btn edit" onclick="editMonthly(${e._row})">✎</button>
+                <button class="action-btn delete" onclick="deleteMonthly(${e._row})">✕</button>
+            </div>
+        </div></div>`).join('');
 }
 
 // =====================================================
 // BANKS CRUD
 // =====================================================
 async function saveBank() {
-  const n = document.getElementById('bank-form-name').value.trim();
-  const b = parseFloat(document.getElementById('bank-form-balance').value) || 0;
-  if (!n) { showToast('Enter bank name','error'); return; }
-  if (await appendRow('Banks', [generateId(), n, b.toString(), new Date().toISOString()])) {
-    showToast('Bank added!','success'); closeBankModal(); await fetchBanks();
-  }
+    const n = document.getElementById('bank-form-name').value.trim();
+    const b = parseFloat(document.getElementById('bank-form-balance').value) || 0;
+    if (!n) { showToast('Enter bank name','error'); return; }
+    if (await appendRow('Banks', [generateId(), n, b.toString(), new Date().toISOString()])) {
+        showToast('Bank added!','success'); closeBankModal(); await fetchBanks();
+    }
 }
 
 async function deleteBank(row) {
-  if (!confirm('Delete this bank?')) return;
-  if (await deleteRow('Banks', row)) { showToast('Deleted!','success'); await fetchBanks(); }
+    if (!confirm('Delete this bank?')) return;
+    if (await deleteRow('Banks', row)) { showToast('Deleted!','success'); await fetchBanks(); }
 }
 
 function renderBanks() {
-  document.getElementById('banks-total').textContent = fmt(banks.reduce((s,b)=>s+(Number(b.balance)||0),0));
-  const c = document.getElementById('banks-list');
-  if (!banks.length) { c.innerHTML='<div class="empty-state"><p>No banks added</p><p style="font-size:12px;margin-top:4px;">Tap + to add one</p></div>'; return; }
-  c.innerHTML = banks.map(b => `
-    <div class="card bank-card">
-      <div><div class="bank-name">🏦 ${b.name}</div></div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span class="bank-balance">${fmt(b.balance)}</span>
-        <button class="action-btn delete" onclick="deleteBank(${b._row})">✕</button>
-      </div>
-    </div>`).join('');
+    document.getElementById('banks-total').textContent = fmt(banks.reduce((s,b)=>s+(Number(b.balance)||0),0));
+    const c = document.getElementById('banks-list');
+    if (!banks.length) { c.innerHTML='<div class="empty-state"><p>No banks added</p><p style="font-size:12px;margin-top:4px;">Tap + to add one</p></div>'; return; }
+    c.innerHTML = banks.map(b => `
+        <div class="card bank-card">
+            <div><div class="bank-name">🏦 ${b.name}</div></div>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span class="bank-balance">${fmt(b.balance)}</span>
+                <button class="action-btn delete" onclick="deleteBank(${b._row})">✕</button>
+            </div>
+        </div>`).join('');
 }
 
 // =====================================================
@@ -1185,142 +1269,152 @@ function renderBanks() {
 function changeDashMonth(d) { dashMonth+=d; if(dashMonth>11){dashMonth=0;dashYear++} if(dashMonth<0){dashMonth=11;dashYear--} renderDashboard(); }
 
 function renderDashboard() {
-  document.getElementById('dash-month-label').textContent = `${MONTHS[dashMonth]} ${dashYear}`;
-  const md = dailyExpenses.filter(e => { const d=new Date(e.date); return d.getMonth()===dashMonth && d.getFullYear()===dashYear; });
-  const inc = md.filter(e=>e.type==='Income').reduce((s,e)=>s+e.amount,0);
-  const dExp = md.filter(e=>e.type!=='Income').reduce((s,e)=>s+e.amount,0);
-  const mPaid = monthlyExpenses.filter(e=>Number(e.month)===dashMonth&&Number(e.year)===dashYear&&e.status==='Paid').reduce((s,e)=>s+e.amount,0);
-  const tExp = dExp + mPaid;
-  document.getElementById('dash-income').textContent = fmt(inc);
-  document.getElementById('dash-expense').textContent = fmt(tExp);
-  document.getElementById('dash-balance').textContent = fmt(inc-tExp);
-  const cm = {};
-  md.filter(e=>e.type!=='Income').forEach(e => cm[e.category]=(cm[e.category]||0)+e.amount);
-  monthlyExpenses.filter(e=>Number(e.month)===dashMonth&&Number(e.year)===dashYear&&e.status==='Paid').forEach(e=>cm[e.category]=(cm[e.category]||0)+e.amount);
-  const ce = Object.entries(cm).sort((a,b)=>b[1]-a[1]);
-  const mx = ce.length ? ce[0][1] : 1;
-  document.getElementById('dash-categories').innerHTML = !ce.length
-    ? '<div style="text-align:center;color:var(--text-light);padding:16px;font-size:13px;">No expenses this month</div>'
-    : ce.map(([cat,amt]) => {
-        const p = (amt/mx*100).toFixed(0);
-        const co = CAT_COLORS[EXPENSE_CATS.indexOf(cat)%CAT_COLORS.length] || '#6366f1';
-        return `<div class="category-bar">
-          <span class="category-name">${cat}</span>
-          <div class="category-bar-fill"><div class="category-bar-inner" style="width:${p}%;background:${co}"></div></div>
-          <span class="category-amount">${fmt(amt)}</span></div>`;
-      }).join('');
-  const rc = [...dailyExpenses].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
-  document.getElementById('dash-recent').innerHTML = !rc.length
-    ? '<div style="text-align:center;color:var(--text-light);padding:16px;font-size:13px;">No transactions yet</div>'
-    : rc.map(e => {
-        const isI = e.type==='Income';
-        return `<div class="expense-item">
-          <div class="expense-info">
-            <div class="expense-category">${e.category}</div>
-            <div class="expense-desc">${e.description||''}</div>
-            <div class="expense-meta">${fmtDate(e.date)}</div>
-          </div>
-          <span class="expense-amount ${isI?'income':'expense'}">${isI?'+':'-'}${fmt(e.amount)}</span>
-        </div>`;
-      }).join('');
+    document.getElementById('dash-month-label').textContent = `${MONTHS[dashMonth]} ${dashYear}`;
+    const md = dailyExpenses.filter(e => { const d=new Date(e.date); return d.getMonth()===dashMonth && d.getFullYear()===dashYear; });
+    const inc = md.filter(e=>e.type==='Income').reduce((s,e)=>s+e.amount,0);
+    const dExp = md.filter(e=>e.type!=='Income').reduce((s,e)=>s+e.amount,0);
+    const mPaid = monthlyExpenses.filter(e=>Number(e.month)===dashMonth&&Number(e.year)===dashYear&&e.status==='Paid').reduce((s,e)=>s+e.amount,0);
+    const tExp = dExp + mPaid;
+    document.getElementById('dash-income').textContent = fmt(inc);
+    document.getElementById('dash-expense').textContent = fmt(tExp);
+    document.getElementById('dash-balance').textContent = fmt(inc-tExp);
+
+    const cm = {};
+    md.filter(e=>e.type!=='Income').forEach(e => cm[e.category]=(cm[e.category]||0)+e.amount);
+    monthlyExpenses.filter(e=>Number(e.month)===dashMonth&&Number(e.year)===dashYear&&e.status==='Paid').forEach(e=>cm[e.category]=(cm[e.category]||0)+e.amount);
+    const ce = Object.entries(cm).sort((a,b)=>b[1]-a[1]);
+    const mx = ce.length ? ce[0][1] : 1;
+    document.getElementById('dash-categories').innerHTML = !ce.length
+        ? '<div style="text-align:center;color:var(--text-light);padding:16px;font-size:13px;">No expenses this month</div>'
+        : ce.map(([cat,amt]) => {
+            const p = (amt/mx*100).toFixed(0);
+            const co = CAT_COLORS[EXPENSE_CATS.indexOf(cat)%CAT_COLORS.length] || '#6366f1';
+            return `<div class="category-bar">
+                <span class="category-name">${cat}</span>
+                <div class="category-bar-fill"><div class="category-bar-inner" style="width:${p}%;background:${co}"></div></div>
+                <span class="category-amount">${fmt(amt)}</span></div>`;
+        }).join('');
+
+    const rc = [...dailyExpenses].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,5);
+    document.getElementById('dash-recent').innerHTML = !rc.length
+        ? '<div style="text-align:center;color:var(--text-light);padding:16px;font-size:13px;">No transactions yet</div>'
+        : rc.map(e => {
+            const isI = e.type==='Income';
+            return `<div class="expense-item">
+                <div class="expense-info">
+                    <div class="expense-category">${e.category}</div>
+                    <div class="expense-desc">${e.description||''}</div>
+                    <div class="expense-meta">${fmtDate(e.date)}</div>
+                </div>
+                <span class="expense-amount ${isI?'income':'expense'}">${isI?'+':'-'}${fmt(e.amount)}</span>
+            </div>`;
+        }).join('');
 }
 
 // =====================================================
 // YEARLY
 // =====================================================
 function changeYear(d) { viewYearOnly+=d; renderYearly(); }
-
 function renderYearly() {
-  document.getElementById('year-label').textContent = viewYearOnly;
-  let tI=0, tE=0;
-  const rows = [];
-  for (let m=0; m<12; m++) {
-    const md = dailyExpenses.filter(e => { const d=new Date(e.date); return d.getMonth()===m && d.getFullYear()===viewYearOnly; });
-    const i = md.filter(e=>e.type==='Income').reduce((s,e)=>s+e.amount,0);
-    const x = md.filter(e=>e.type!=='Income').reduce((s,e)=>s+e.amount,0);
-    const mx = monthlyExpenses.filter(e=>Number(e.month)===m&&Number(e.year)===viewYearOnly&&e.status==='Paid').reduce((s,e)=>s+e.amount,0);
-    const te = x+mx;
-    rows.push({ month: MONTHS[m].substr(0,3), income: i, expense: te });
-    tI+=i; tE+=te;
-  }
-  document.getElementById('yearly-income').textContent = fmt(tI);
-  document.getElementById('yearly-expense').textContent = fmt(tE);
-  document.getElementById('yearly-table-body').innerHTML = rows.map(r => {
-    const b = r.income-r.expense;
-    return `<tr>
-      <td>${r.month}</td>
-      <td style="color:var(--income)">${r.income>0?fmt(r.income):'-'}</td>
-      <td style="color:var(--expense)">${r.expense>0?fmt(r.expense):'-'}</td>
-      <td style="color:${b>=0?'var(--income)':'var(--expense)'}">${fmt(b)}</td>
-    </tr>`;
-  }).join('');
+    document.getElementById('year-label').textContent = viewYearOnly;
+    let tI=0, tE=0;
+    const rows = [];
+    for (let m=0; m<12; m++) {
+        const md = dailyExpenses.filter(e => { const d=new Date(e.date); return d.getMonth()===m && d.getFullYear()===viewYearOnly; });
+        const i = md.filter(e=>e.type==='Income').reduce((s,e)=>s+e.amount,0);
+        const x = md.filter(e=>e.type!=='Income').reduce((s,e)=>s+e.amount,0);
+        const mx = monthlyExpenses.filter(e=>Number(e.month)===m&&Number(e.year)===viewYearOnly&&e.status==='Paid').reduce((s,e)=>s+e.amount,0);
+        const te = x+mx;
+        rows.push({ month: MONTHS[m].substr(0,3), income: i, expense: te });
+        tI+=i; tE+=te;
+    }
+    document.getElementById('yearly-income').textContent = fmt(tI);
+    document.getElementById('yearly-expense').textContent = fmt(tE);
+    document.getElementById('yearly-table-body').innerHTML = rows.map(r => {
+        const b = r.income-r.expense;
+        return `<tr>
+            <td>${r.month}</td>
+            <td style="color:var(--income)">${r.income>0?fmt(r.income):'-'}</td>
+            <td style="color:var(--expense)">${r.expense>0?fmt(r.expense):'-'}</td>
+            <td style="color:${b>=0?'var(--income)':'var(--expense)'}">${fmt(b)}</td>
+        </tr>`;
+    }).join('');
 }
 
 // =====================================================
 // INTEREST CALCULATOR
 // =====================================================
 function calcInterest() {
-  const P = parseFloat(document.getElementById('int-principal').value);
-  const r = parseFloat(document.getElementById('int-rate').value);
-  const t = parseFloat(document.getElementById('int-years').value);
-  const n = parseInt(document.getElementById('int-compound').value);
-  const d = document.getElementById('interest-result');
-  if (!P||!r||!t) { d.innerHTML=''; return; }
-  const rate=r/100, SI=P*rate*t, CIt=P*Math.pow((1+rate/n),n*t), CI=CIt-P;
-  d.innerHTML=`
-    <div class="result-card">
-      <h3 style="margin-bottom:10px;font-size:15px;">Simple Interest</h3>
-      <div class="result-row"><span class="result-label">Principal</span><span class="result-value">${fmt(P)}</span></div>
-      <div class="result-row"><span class="result-label">Interest</span><span class="result-value">${fmt(Math.round(SI))}</span></div>
-      <div class="result-row"><span class="result-label">Total</span><span class="result-value">${fmt(Math.round(P+SI))}</span></div>
-    </div>
-    <div class="result-card" style="margin-top:10px;background:linear-gradient(135deg,#10b981,#059669);">
-      <h3 style="margin-bottom:10px;font-size:15px;">Compound Interest</h3>
-      <div class="result-row"><span class="result-label">Principal</span><span class="result-value">${fmt(P)}</span></div>
-      <div class="result-row"><span class="result-label">Interest</span><span class="result-value">${fmt(Math.round(CI))}</span></div>
-      <div class="result-row"><span class="result-label">Total</span><span class="result-value">${fmt(Math.round(CIt))}</span></div>
-      <div class="result-row"><span class="result-label">Extra over SI</span><span class="result-value">${fmt(Math.round(CI-SI))}</span></div>
-    </div>`;
+    const P = parseFloat(document.getElementById('int-principal').value);
+    const r = parseFloat(document.getElementById('int-rate').value);
+    const t = parseFloat(document.getElementById('int-years').value);
+    const n = parseInt(document.getElementById('int-compound').value);
+    const d = document.getElementById('interest-result');
+    if (!P||!r||!t) { d.innerHTML=''; return; }
+    const rate=r/100, SI=P*rate*t, CIt=P*Math.pow((1+rate/n),n*t), CI=CIt-P;
+    d.innerHTML=`
+        <div class="result-card">
+            <h3 style="margin-bottom:10px;font-size:15px;">Simple Interest</h3>
+            <div class="result-row"><span class="result-label">Principal</span><span class="result-value">${fmt(P)}</span></div>
+            <div class="result-row"><span class="result-label">Interest</span><span class="result-value">${fmt(Math.round(SI))}</span></div>
+            <div class="result-row"><span class="result-label">Total</span><span class="result-value">${fmt(Math.round(P+SI))}</span></div>
+        </div>
+        <div class="result-card" style="margin-top:10px;background:linear-gradient(135deg,#10b981,#059669);">
+            <h3 style="margin-bottom:10px;font-size:15px;">Compound Interest</h3>
+            <div class="result-row"><span class="result-label">Principal</span><span class="result-value">${fmt(P)}</span></div>
+            <div class="result-row"><span class="result-label">Interest</span><span class="result-value">${fmt(Math.round(CI))}</span></div>
+            <div class="result-row"><span class="result-label">Total</span><span class="result-value">${fmt(Math.round(CIt))}</span></div>
+            <div class="result-row"><span class="result-label">Extra over SI</span><span class="result-value">${fmt(Math.round(CI-SI))}</span></div>
+        </div>`;
 }
 
 // =====================================================
 // REFRESH & INIT
 // =====================================================
 async function refreshAll() {
-  showLoading('Syncing...');
-  await Promise.all([fetchDailyExpenses(), fetchMonthlyExpenses(), fetchBanks()]);
-  hideLoading();
-  showToast('Synced!','success');
+    showLoading('Syncing...');
+    await Promise.all([fetchDailyExpenses(), fetchMonthlyExpenses(), fetchBanks()]);
+    hideLoading();
+    showToast('Synced!','success');
 }
 
 async function initApp(isNew = false) {
-  const cd = localStorage.getItem('dailyExpenses_cache');
-  const cm = localStorage.getItem('monthlyExpenses_cache');
-  const cb = localStorage.getItem('banks_cache');
-  if (cd) dailyExpenses = JSON.parse(cd);
-  if (cm) monthlyExpenses = JSON.parse(cm);
-  if (cb) banks = JSON.parse(cb);
-  populateCategories();
-  populateBankSelects();
-  renderDashboard();
-  document.getElementById('fab-btn').style.display = 'none';
-  showLoading('Loading data...');
-  await Promise.all([fetchDailyExpenses(), fetchMonthlyExpenses(), fetchBanks()]);
-  hideLoading();
-  if (isNew) {
-    const name = (userProfile && userProfile.name) ? userProfile.name.split(' ')[0] : '';
-    showToast(`Welcome${name?', '+name:''}! Your "Expense Tracker" sheet is ready. 🎉`, 'success', 5000);
-  }
+    const cd = localStorage.getItem('dailyExpenses_cache');
+    const cm = localStorage.getItem('monthlyExpenses_cache');
+    const cb = localStorage.getItem('banks_cache');
+    if (cd) { try { dailyExpenses = JSON.parse(cd); } catch(e){} }
+    if (cm) { try { monthlyExpenses = JSON.parse(cm); } catch(e){} }
+    if (cb) { try { banks = JSON.parse(cb); } catch(e){} }
+
+    populateCategories();
+    populateBankSelects();
+    renderDashboard();
+
+    document.getElementById('fab-btn').style.display = 'none';
+    showLoading('Loading data...');
+    await Promise.all([fetchDailyExpenses(), fetchMonthlyExpenses(), fetchBanks()]);
+    hideLoading();
+
+    if (isNew) {
+        const name = (userProfile && userProfile.name) ? userProfile.name.split(' ')[0] : '';
+        showToast(`🎉 Welcome${name?', '+name:''}! Your "Expense Tracker" sheet is ready.`, 'success', 5000);
+    }
 }
 
 // Service Worker registration
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(()=>{}); });
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(()=>{});
+    });
 }
 
-// ── BOOT ──
-// Do NOT call initGoogleAuth here — it's triggered by onGsiLoaded() callback above.
-// This ensures GSI is actually ready before we try to use it (the #1 mobile fix).
+// =====================================================
+// BOOT
+// =====================================================
+window.addEventListener('load', () => {
+    // Wait a bit for GIS script to load
+    setTimeout(initGoogleAuth, 100);
+});
 </script>
 </body>
 </html>
