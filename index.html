@@ -861,8 +861,9 @@ async function verifyTokenAndEnter() {
             try { userProfile = JSON.parse(sess.profile); } catch(err) {}
             spreadsheetId = sess.sheetId;
             accessToken = null;
-            enterApp();
-            setTimeout(() => silentTokenRefresh(), 1500);
+            // Don't enter app until we have a fresh token
+            silentTokenRefresh();
+            return;
         } else {
             clearSession();
             accessToken = null;
