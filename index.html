@@ -404,16 +404,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 <!-- GOOGLE IDENTITY SERVICES — loaded only in real browsers -->
 <script>
-// Load GIS script only if NOT a restricted WebView
+// Always try to load GIS — works in browser and Median.co WebView
 (function() {
-    var ua = navigator.userAgent || '';
-    var isHardWebView = /wv\)/.test(ua) || /FB_IAB|FBAN|FBAV|Instagram/i.test(ua);
-    if (!isHardWebView) {
-        var s = document.createElement('script');
-        s.src = 'https://accounts.google.com/gsi/client';
-        s.async = true; s.defer = true;
-        document.head.appendChild(s);
-    }
+    var s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true; s.defer = true;
+    document.head.appendChild(s);
 })();
 </script>
 
@@ -456,44 +452,69 @@ let viewMonth = now.getMonth(), viewYear = now.getFullYear();
 let viewYearOnly = now.getFullYear();
 
 // =====================================================
-// MOBILE / WEBVIEW DETECTION
+// DETECTION HELPERS
 // =====================================================
 function isWebView() {
     const ua = navigator.userAgent || '';
-    // Standard WebView flag
     if (/wv\)/.test(ua)) return true;
-    // Social app browsers
     if (/FB_IAB|FBAN|FBAV|Instagram|Line\/|Twitter|MicroMessenger/i.test(ua)) return true;
-    // iOS in-app browser (no Safari in UA)
     if (/iPhone|iPad/.test(ua) && !/Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)) return true;
-    // Median.co / Gonative wrapper detection
     if (typeof window.median !== 'undefined') return true;
     if (typeof window.gonative !== 'undefined') return true;
-    // Android WebView without Chrome browser chrome
-    if (/Android/.test(ua) && /Version\/[\d.]+ Chrome\/[\d.]+/.test(ua)) return true;
     return false;
 }
-
 function isMobile() {
     return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
 }
 
-function copyLinkToClipboard() {
-    const url = window.location.href;
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(() => alert('Link copied! Paste in Chrome.'));
-    } else {
-        const ta = document.createElement('textarea');
-        ta.value = url; document.body.appendChild(ta); ta.select();
-        try { document.execCommand('copy'); alert('Link copied! Paste in Chrome.'); } catch(e){}
-        document.body.removeChild(ta);
-    }
+// =====================================================
+// PERSISTENT SESSION STORAGE
+// =====================================================
+const SESSION_KEYS = {
+    TOKEN: 'et_access_token',
+    EXPIRY: 'et_token_expiry',
+    PROFILE: 'et_user_profile',
+    SHEET_ID: 'et_spreadsheet_id',
+    LOGGED_IN: 'et_logged_in'
+};
+
+function saveSession(token, expiresIn, profile) {
+    try {
+        localStorage.setItem(SESSION_KEYS.TOKEN, token);
+        localStorage.setItem(SESSION_KEYS.EXPIRY, (Date.now() + parseInt(expiresIn || 3600) * 1000).toString());
+        localStorage.setItem(SESSION_KEYS.LOGGED_IN, 'true');
+        if (profile) localStorage.setItem(SESSION_KEYS.PROFILE, JSON.stringify(profile));
+        // Also save to sessionStorage as backup
+        sessionStorage.setItem(SESSION_KEYS.TOKEN, token);
+        sessionStorage.setItem(SESSION_KEYS.LOGGED_IN, 'true');
+    } catch(e) { console.error('saveSession error', e); }
+}
+
+function loadSession() {
+    try {
+        return {
+            token: localStorage.getItem(SESSION_KEYS.TOKEN),
+            expiry: localStorage.getItem(SESSION_KEYS.EXPIRY),
+            profile: localStorage.getItem(SESSION_KEYS.PROFILE),
+            sheetId: localStorage.getItem(SESSION_KEYS.SHEET_ID),
+            loggedIn: localStorage.getItem(SESSION_KEYS.LOGGED_IN) === 'true'
+        };
+    } catch(e) { return {}; }
+}
+
+function clearSession() {
+    Object.values(SESSION_KEYS).forEach(k => {
+        try { localStorage.removeItem(k); } catch(e) {}
+        try { sessionStorage.removeItem(k); } catch(e) {}
+    });
+    try { localStorage.removeItem('dailyExpenses_cache'); } catch(e) {}
+    try { localStorage.removeItem('monthlyExpenses_cache'); } catch(e) {}
+    try { localStorage.removeItem('banks_cache'); } catch(e) {}
 }
 
 // =====================================================
-// REDIRECT-BASED OAUTH (works in WebView APKs)
+// OAUTH — REDIRECT URI (hardcoded to match Google Console)
 // =====================================================
-// HARDCODED: Must exactly match Google Cloud Console registered URI
 const REDIRECT_URI = 'https://expense-tracker-wkr5.onrender.com/';
 
 function buildOAuthURL() {
@@ -508,135 +529,79 @@ function buildOAuthURL() {
     return 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
 }
 
-function handleRedirectToken() {
-    // Parse token from URL hash after redirect
-    const hash = window.location.hash.substring(1);
-    if (!hash) return false;
-    const params = new URLSearchParams(hash);
+// Parse token from URL hash (after redirect back to app)
+function extractTokenFromHash(hash) {
+    if (!hash) return null;
+    const h = hash.startsWith('#') ? hash.substring(1) : hash;
+    const params = new URLSearchParams(h);
     const token = params.get('access_token');
     const expiresIn = params.get('expires_in');
-    if (!token) return false;
-
-    // Clean URL
-    history.replaceState(null, '', window.location.pathname);
-
-    accessToken = token;
-    localStorage.setItem('et_access_token', token);
-    localStorage.setItem('et_token_expiry', (Date.now() + parseInt(expiresIn || 3600) * 1000).toString());
-    localStorage.setItem('et_logged_in', 'true');
-    return true;
-}
-
-function showWebViewSignIn() {
-    const auth = document.getElementById('auth-screen');
-    auth.innerHTML = `
-        <div class="auth-logo">💰</div>
-        <h1 class="auth-title">Expense Tracker</h1>
-        <p class="auth-sub">Track your daily & monthly expenses.<br>All data saved to your own <strong>"Expense Tracker"</strong> Google Sheet.</p>
-        <button class="google-btn-manual" onclick="openOAuthExternal()" style="display:flex;margin-top:20px;">
-            <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
-            Sign in with Google
-        </button>
-        <div style="margin-top:16px;padding:14px;background:#f0fdf4;border-radius:10px;max-width:320px;font-size:12px;color:#166534;text-align:left;line-height:1.6;">
-            <strong>How it works:</strong><br>
-            1. Tap <strong>Sign in with Google</strong> above<br>
-            2. Google opens in Chrome — sign in there<br>
-            3. You'll be redirected back automatically<br>
-            4. Your data stays safe in your Google Sheet ✅
-        </div>
-    `;
-}
-
-function openOAuthExternal() {
-    const oauthUrl = buildOAuthURL();
-    // Try Android intent to force Chrome
-    const intentUrl = 'intent://' + oauthUrl.replace(/^https?:\/\//, '') +
-        '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' +
-        encodeURIComponent(oauthUrl) + ';end';
-    try {
-        window.location.href = intentUrl;
-    } catch(e) {
-        window.open(oauthUrl, '_blank');
-    }
+    if (!token) return null;
+    return { token, expiresIn };
 }
 
 // =====================================================
-// AUTH — Google Identity Services (Mobile-Safe)
+// AUTH FLOW
 // =====================================================
 let gisRetryCount = 0;
-const GIS_MAX_RETRIES = 30;
+const GIS_MAX_RETRIES = 20;
+let oauthPopup = null;
 
 function initGoogleAuth() {
     const statusEl = document.getElementById('auth-status');
 
-    // ── Step 0: Check if returning from OAuth redirect ──
-    if (window.location.hash && window.location.hash.includes('access_token')) {
-        if (handleRedirectToken()) {
-            statusEl.innerHTML = '<div class="auth-spinner"></div>Signing in...';
-            completeLoginWithToken();
-            return;
-        }
-    }
-
-    // ── Step 0b: Check cached token OR persistent login flag ──
-    const savedToken = localStorage.getItem('et_access_token');
-    const savedExpiry = localStorage.getItem('et_token_expiry');
-    const wasLoggedIn = localStorage.getItem('et_logged_in') === 'true';
-    const savedProfile = localStorage.getItem('et_user_profile');
-
-    if (savedToken && savedExpiry && Date.now() < parseInt(savedExpiry)) {
-        // Valid token exists — verify and enter
-        accessToken = savedToken;
-        spreadsheetId = localStorage.getItem('et_spreadsheet_id');
-        if (savedProfile) {
-            try { userProfile = JSON.parse(savedProfile); } catch(e) {}
-        }
-        statusEl.innerHTML = '<div class="auth-spinner"></div>Auto-signing in...';
-        verifyTokenAndEnter();
+    // ── STEP 1: Token returned in URL hash (after redirect) ──
+    const hashData = extractTokenFromHash(window.location.hash);
+    if (hashData) {
+        history.replaceState(null, '', window.location.pathname);
+        accessToken = hashData.token;
+        saveSession(hashData.token, hashData.expiresIn, null);
+        statusEl.innerHTML = '<div class="auth-spinner"></div>Signing in...';
+        completeLoginWithToken();
         return;
     }
 
-    if (wasLoggedIn && savedProfile) {
-        // Token expired but user was logged in before — skip login screen entirely
-        // Enter app with cached data, refresh token silently in background
-        try { userProfile = JSON.parse(savedProfile); } catch(e) {}
-        spreadsheetId = localStorage.getItem('et_spreadsheet_id');
-        accessToken = null;
-        statusEl.innerHTML = '<div class="auth-spinner"></div>Loading...';
+    // ── STEP 2: Previously logged in — enter app directly ──
+    const sess = loadSession();
+    if (sess.loggedIn && sess.profile) {
+        try { userProfile = JSON.parse(sess.profile); } catch(e) {}
+        spreadsheetId = sess.sheetId;
+
+        if (sess.token && sess.expiry && Date.now() < parseInt(sess.expiry)) {
+            // Token still valid
+            accessToken = sess.token;
+        } else {
+            // Token expired — enter app anyway with cached data
+            accessToken = null;
+        }
+        // Always skip login screen if they logged in before
         enterApp();
-        silentTokenRefresh();
+        if (!accessToken) {
+            // Silently get a new token in background after entering app
+            setTimeout(() => silentTokenRefresh(), 1500);
+        }
         return;
     }
 
-    // ── Step 1: WebView APK — use redirect auth ──
-    if (isWebView()) {
-        showWebViewSignIn();
-        return;
-    }
-
-    // ── Step 2: Real browser — use Google Identity Services ──
+    // ── STEP 3: First time — try GIS (works in Median.co + browser) ──
     if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
         gisRetryCount++;
-        statusEl.innerHTML = `<div class="auth-spinner"></div>Loading Google services... (${gisRetryCount}/${GIS_MAX_RETRIES})`;
-
-        if (gisRetryCount >= GIS_MAX_RETRIES) {
-            // GIS failed to load even in browser — fallback to redirect
-            statusEl.className = 'auth-status error';
-            statusEl.innerHTML = `
-                <strong>⚠ Google Sign-In failed to load</strong><br>
-                <small>Check your internet connection</small>
-                <br><button class="retry-btn" onclick="location.reload()">Retry</button>
-                <br><button class="retry-btn" onclick="openOAuthExternal()" style="margin-top:8px;background:#10b981;">Try Direct Login</button>
-            `;
+        if (gisRetryCount <= GIS_MAX_RETRIES) {
+            statusEl.innerHTML = \`<div class="auth-spinner"></div>Loading...\`;
+            setTimeout(initGoogleAuth, 500);
             return;
         }
-        setTimeout(initGoogleAuth, 500);
+        // GIS failed to load — show manual button
+        showManualLoginScreen();
         return;
     }
 
     gisRetryCount = 0;
+    showGISLoginScreen();
+}
 
-    // ── Step 3: Initialize OAuth2 token client ──
+function showGISLoginScreen() {
+    const statusEl = document.getElementById('auth-status');
     try {
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
@@ -645,15 +610,7 @@ function initGoogleAuth() {
             callback: handleTokenResponse,
             error_callback: handleTokenError,
         });
-    } catch (err) {
-        console.error('Token client init error:', err);
-        statusEl.className = 'auth-status error';
-        statusEl.textContent = 'Init error: ' + err.message;
-        return;
-    }
 
-    // ── Step 4: Render Google button ──
-    try {
         google.accounts.id.initialize({
             client_id: GOOGLE_CLIENT_ID,
             callback: handleCredentialResponse,
@@ -666,35 +623,105 @@ function initGoogleAuth() {
         const container = document.getElementById('google-signin-container');
         container.innerHTML = '';
         const width = Math.min(window.innerWidth - 80, 320);
-
         google.accounts.id.renderButton(container, {
-            theme: 'outline',
-            size: 'large',
-            width: width,
-            text: 'signin_with',
-            shape: 'rectangular',
-            logo_alignment: 'left'
+            theme: 'outline', size: 'large', width,
+            text: 'signin_with', shape: 'rectangular', logo_alignment: 'left'
         });
-
         statusEl.innerHTML = 'Tap the button to sign in';
 
         setTimeout(() => {
             if (!container.querySelector('iframe, div[role="button"]')) {
-                document.getElementById('manual-signin-btn').style.display = 'flex';
-                statusEl.innerHTML = 'Use the button below to sign in';
+                showManualLoginScreen();
             }
         }, 3000);
 
         if (!isMobile()) {
             try { google.accounts.id.prompt(); } catch(e) {}
         }
-    } catch (err) {
-        console.error('Render button error:', err);
-        document.getElementById('manual-signin-btn').style.display = 'flex';
-        statusEl.textContent = 'Use the button below to sign in';
+    } catch(err) {
+        showManualLoginScreen();
     }
 }
 
+function showManualLoginScreen() {
+    const auth = document.getElementById('auth-screen');
+    auth.innerHTML = \`
+        <div class="auth-logo">💰</div>
+        <h1 class="auth-title">Expense Tracker</h1>
+        <p class="auth-sub">Track your daily & monthly expenses.<br>All data saved to your own <strong>"Expense Tracker"</strong> Google Sheet.</p>
+        <button class="google-btn-manual" onclick="startOAuthLogin()" style="display:flex;margin-top:20px;">
+            <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+            Sign in with Google
+        </button>
+        <p id="auth-status" style="margin-top:12px;font-size:12px;color:var(--text-light);text-align:center;"></p>
+    \`;
+}
+
+// Called when user taps "Sign in with Google" button
+function startOAuthLogin() {
+    const oauthUrl = buildOAuthURL();
+    const statusEl = document.getElementById('auth-status');
+    if (statusEl) statusEl.textContent = 'Opening Google sign-in...';
+
+    // Try GIS popup first (works in most WebViews including Median.co)
+    if (typeof google !== 'undefined' && tokenClient) {
+        try {
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+            return;
+        } catch(e) {}
+    }
+
+    // Try window.open popup (Median.co supports this)
+    try {
+        oauthPopup = window.open(oauthUrl, 'googleauth',
+            'width=500,height=600,scrollbars=yes,resizable=yes');
+        if (oauthPopup) {
+            // Poll for redirect back to our domain
+            const checkPopup = setInterval(() => {
+                try {
+                    if (oauthPopup.closed) {
+                        clearInterval(checkPopup);
+                        // Check if token was stored by the popup page
+                        const sess = loadSession();
+                        if (sess.token) {
+                            accessToken = sess.token;
+                            completeLoginWithToken();
+                        }
+                        return;
+                    }
+                    const popupHash = oauthPopup.location.hash;
+                    if (oauthPopup.location.href.includes(REDIRECT_URI) && popupHash) {
+                        const data = extractTokenFromHash(popupHash);
+                        if (data) {
+                            clearInterval(checkPopup);
+                            oauthPopup.close();
+                            accessToken = data.token;
+                            saveSession(data.token, data.expiresIn, null);
+                            if (statusEl) statusEl.innerHTML = '<div class="auth-spinner"></div>Signing in...';
+                            completeLoginWithToken();
+                        }
+                    }
+                } catch(e) { /* cross-origin, keep waiting */ }
+            }, 500);
+            return;
+        }
+    } catch(e) {}
+
+    // Last resort: full page redirect (user comes back via URL hash)
+    window.location.href = oauthUrl;
+}
+
+function manualSignIn() { startOAuthLogin(); }
+
+function silentTokenRefresh() {
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2 && tokenClient) {
+        try {
+            tokenClient.requestAccessToken({ prompt: '' });
+            return;
+        } catch(e) {}
+    }
+    // For WebView: can't silently refresh, will prompt on next API call
+}
 // Complete login after redirect token received
 async function completeLoginWithToken() {
     const statusEl = document.getElementById('auth-status');
@@ -783,8 +810,7 @@ async function handleTokenResponse(tokenResponse) {
 
     accessToken = tokenResponse.access_token;
     const expiresIn = tokenResponse.expires_in || 3600;
-    localStorage.setItem('et_access_token', accessToken);
-    localStorage.setItem('et_token_expiry', (Date.now() + expiresIn * 1000).toString());
+    saveSession(accessToken, expiresIn, userProfile);
 
     // If we don't have profile yet, fetch it
     if (!userProfile) {
@@ -835,24 +861,21 @@ async function verifyTokenAndEnter() {
         });
         if (!res.ok) throw new Error('Token expired');
         userProfile = await res.json();
-        localStorage.setItem('et_user_profile', JSON.stringify(userProfile));
-        localStorage.setItem('et_logged_in', 'true');
+        saveSession(accessToken, 3600, userProfile);
         if (!spreadsheetId) await setupSpreadsheet();
         enterApp();
     } catch(e) {
         console.warn('Token verify failed:', e);
         // Token expired — if user was previously logged in, skip login screen
-        const wasLoggedIn = localStorage.getItem('et_logged_in') === 'true';
-        const cachedProfile = localStorage.getItem('et_user_profile');
-        if (wasLoggedIn && cachedProfile) {
-            try { userProfile = JSON.parse(cachedProfile); } catch(err) {}
-            spreadsheetId = localStorage.getItem('et_spreadsheet_id');
+        const sess = loadSession();
+        if (sess.loggedIn && sess.profile) {
+            try { userProfile = JSON.parse(sess.profile); } catch(err) {}
+            spreadsheetId = sess.sheetId;
             accessToken = null;
             enterApp();
-            silentTokenRefresh();
+            setTimeout(() => silentTokenRefresh(), 1500);
         } else {
-            localStorage.removeItem('et_access_token');
-            localStorage.removeItem('et_token_expiry');
+            clearSession();
             accessToken = null;
             initGoogleAuth();
         }
@@ -877,8 +900,7 @@ function handleLogout() {
         try { google.accounts.oauth2.revoke(accessToken, () => {}); } catch(e) {}
     }
     // Clear ALL saved state including persistent login flag
-    ['et_access_token','et_token_expiry','et_user_profile','et_spreadsheet_id',
-     'et_logged_in','dailyExpenses_cache','monthlyExpenses_cache','banks_cache'].forEach(k => localStorage.removeItem(k));
+    clearSession();
     accessToken = userProfile = spreadsheetId = null;
     location.reload();
 }
@@ -926,17 +948,9 @@ async function sheetsAPI(endpoint, options = {}) {
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...(options.headers || {}) }
     });
     if (res.status === 401) {
-        // Token expired mid-session — try silent refresh, don't force full logout
         accessToken = null;
-        localStorage.removeItem('et_access_token');
-        localStorage.removeItem('et_token_expiry');
-        showToast('Session refreshing...', 'error');
-        // Show re-auth button without clearing login state
-        setTimeout(() => {
-            if (!accessToken) {
-                showReAuthPrompt();
-            }
-        }, 2000);
+        try { localStorage.removeItem(SESSION_KEYS.TOKEN); localStorage.removeItem(SESSION_KEYS.EXPIRY); } catch(e) {}
+        setTimeout(() => { if (!accessToken) showReAuthPrompt(); }, 1500);
         silentTokenRefresh();
         throw new Error('TOKEN_EXPIRED');
     }
@@ -983,7 +997,7 @@ async function setupSpreadsheet() {
         );
         if (searchRes.files && searchRes.files.length > 0) {
             spreadsheetId = searchRes.files[0].id;
-            localStorage.setItem('et_spreadsheet_id', spreadsheetId);
+            localStorage.setItem('et_spreadsheet_id', spreadsheetId); try { localStorage.setItem(SESSION_KEYS.SHEET_ID, spreadsheetId); } catch(e) {}
             await ensureSheets();
             return false;
         }
@@ -1010,7 +1024,7 @@ async function createNewSpreadsheet() {
     if (!res.ok) throw new Error('Failed to create spreadsheet');
     const result = await res.json();
     spreadsheetId = result.spreadsheetId;
-    localStorage.setItem('et_spreadsheet_id', spreadsheetId);
+    localStorage.setItem('et_spreadsheet_id', spreadsheetId); try { localStorage.setItem(SESSION_KEYS.SHEET_ID, spreadsheetId); } catch(e) {}
 
     try {
         const info = await sheetsAPI('?fields=sheets.properties');
@@ -1547,6 +1561,8 @@ async function refreshAll() {
 }
 
 async function initApp(isNew = false) {
+    const sess = loadSession();
+    if (sess.sheetId && !spreadsheetId) spreadsheetId = sess.sheetId;
     const cd = localStorage.getItem('dailyExpenses_cache');
     const cm = localStorage.getItem('monthlyExpenses_cache');
     const cb = localStorage.getItem('banks_cache');
