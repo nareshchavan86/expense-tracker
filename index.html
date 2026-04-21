@@ -523,6 +523,7 @@ function handleRedirectToken() {
     accessToken = token;
     localStorage.setItem('et_access_token', token);
     localStorage.setItem('et_token_expiry', (Date.now() + parseInt(expiresIn || 3600) * 1000).toString());
+    localStorage.setItem('et_logged_in', 'true');
     return true;
 }
 
@@ -577,18 +578,33 @@ function initGoogleAuth() {
         }
     }
 
-    // ── Step 0b: Check cached token (auto-login) ──
+    // ── Step 0b: Check cached token OR persistent login flag ──
     const savedToken = localStorage.getItem('et_access_token');
     const savedExpiry = localStorage.getItem('et_token_expiry');
+    const wasLoggedIn = localStorage.getItem('et_logged_in') === 'true';
+    const savedProfile = localStorage.getItem('et_user_profile');
+
     if (savedToken && savedExpiry && Date.now() < parseInt(savedExpiry)) {
+        // Valid token exists — verify and enter
         accessToken = savedToken;
         spreadsheetId = localStorage.getItem('et_spreadsheet_id');
-        const savedProfile = localStorage.getItem('et_user_profile');
         if (savedProfile) {
             try { userProfile = JSON.parse(savedProfile); } catch(e) {}
         }
         statusEl.innerHTML = '<div class="auth-spinner"></div>Auto-signing in...';
         verifyTokenAndEnter();
+        return;
+    }
+
+    if (wasLoggedIn && savedProfile) {
+        // Token expired but user was logged in before — skip login screen entirely
+        // Enter app with cached data, refresh token silently in background
+        try { userProfile = JSON.parse(savedProfile); } catch(e) {}
+        spreadsheetId = localStorage.getItem('et_spreadsheet_id');
+        accessToken = null;
+        statusEl.innerHTML = '<div class="auth-spinner"></div>Loading...';
+        enterApp();
+        silentTokenRefresh();
         return;
     }
 
@@ -820,14 +836,37 @@ async function verifyTokenAndEnter() {
         if (!res.ok) throw new Error('Token expired');
         userProfile = await res.json();
         localStorage.setItem('et_user_profile', JSON.stringify(userProfile));
+        localStorage.setItem('et_logged_in', 'true');
         if (!spreadsheetId) await setupSpreadsheet();
         enterApp();
     } catch(e) {
         console.warn('Token verify failed:', e);
-        localStorage.removeItem('et_access_token');
-        localStorage.removeItem('et_token_expiry');
-        accessToken = null;
-        initGoogleAuth();
+        // Token expired — if user was previously logged in, skip login screen
+        const wasLoggedIn = localStorage.getItem('et_logged_in') === 'true';
+        const cachedProfile = localStorage.getItem('et_user_profile');
+        if (wasLoggedIn && cachedProfile) {
+            try { userProfile = JSON.parse(cachedProfile); } catch(err) {}
+            spreadsheetId = localStorage.getItem('et_spreadsheet_id');
+            accessToken = null;
+            enterApp();
+            silentTokenRefresh();
+        } else {
+            localStorage.removeItem('et_access_token');
+            localStorage.removeItem('et_token_expiry');
+            accessToken = null;
+            initGoogleAuth();
+        }
+    }
+}
+
+// Try to silently get a fresh token without showing login screen
+function silentTokenRefresh() {
+    try {
+        if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2 && tokenClient) {
+            tokenClient.requestAccessToken({ prompt: '' });
+        }
+    } catch(e) {
+        console.log('Silent refresh unavailable');
     }
 }
 
@@ -837,10 +876,34 @@ function handleLogout() {
     if (accessToken) {
         try { google.accounts.oauth2.revoke(accessToken, () => {}); } catch(e) {}
     }
+    // Clear ALL saved state including persistent login flag
     ['et_access_token','et_token_expiry','et_user_profile','et_spreadsheet_id',
-     'dailyExpenses_cache','monthlyExpenses_cache','banks_cache'].forEach(k => localStorage.removeItem(k));
+     'et_logged_in','dailyExpenses_cache','monthlyExpenses_cache','banks_cache'].forEach(k => localStorage.removeItem(k));
     accessToken = userProfile = spreadsheetId = null;
     location.reload();
+}
+
+// Show a small re-auth toast/button without going back to login screen
+function showReAuthPrompt() {
+    // Only show if still in app (not on auth screen)
+    if (document.getElementById('app-container').classList.contains('active')) {
+        const toast = document.getElementById('toast');
+        toast.textContent = 'Tap to refresh your session';
+        toast.className = 'toast error show';
+        toast.style.cursor = 'pointer';
+        toast.onclick = () => {
+            toast.className = 'toast';
+            toast.onclick = null;
+            if (isWebView()) {
+                openOAuthExternal();
+            } else if (tokenClient) {
+                tokenClient.requestAccessToken({ prompt: '' });
+            } else {
+                openOAuthExternal();
+            }
+        };
+        setTimeout(() => { toast.className = 'toast'; }, 8000);
+    }
 }
 
 function enterApp(isNew = false) {
@@ -863,8 +926,18 @@ async function sheetsAPI(endpoint, options = {}) {
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...(options.headers || {}) }
     });
     if (res.status === 401) {
-        showToast('Session expired. Please sign in again.', 'error');
-        handleLogout();
+        // Token expired mid-session — try silent refresh, don't force full logout
+        accessToken = null;
+        localStorage.removeItem('et_access_token');
+        localStorage.removeItem('et_token_expiry');
+        showToast('Session refreshing...', 'error');
+        // Show re-auth button without clearing login state
+        setTimeout(() => {
+            if (!accessToken) {
+                showReAuthPrompt();
+            }
+        }, 2000);
+        silentTokenRefresh();
         throw new Error('TOKEN_EXPIRED');
     }
     if (!res.ok) {
