@@ -510,7 +510,7 @@ function clearSession() {
 // =====================================================
 // OAUTH CONFIG
 // =====================================================
-const REDIRECT_URI = 'https://expense-tracker-1-39kb.onrender.com';
+const REDIRECT_URI = 'https://expense-tracker-1-39kb.onrender.com/';
 
 function buildOAuthURL() {
     return 'https://accounts.google.com/o/oauth2/v2/auth?' +
@@ -630,6 +630,7 @@ function initGISLogin() {
             prompt: '',
             callback: handleTokenResponse,
             error_callback: handleTokenError,
+            ...(isMobile() ? { ux_mode: 'redirect', redirect_uri: 'https://expense-tracker-1-39kb.onrender.com/' } : {})
         });
 
         google.accounts.id.initialize({
@@ -638,7 +639,8 @@ function initGISLogin() {
             auto_select: false,
             cancel_on_tap_outside: true,
             use_fedcm_for_prompt: true,
-            ux_mode: 'popup',
+            ux_mode: isMobile() ? 'redirect' : 'popup',
+            redirect_uri: 'https://expense-tracker-1-39kb.onrender.com/',
         });
 
         const width = Math.min(window.innerWidth - 80, 320);
