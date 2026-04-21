@@ -402,8 +402,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </nav>
 </div>
 
-<!-- GOOGLE IDENTITY SERVICES -->
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!-- GOOGLE IDENTITY SERVICES — loaded only in real browsers -->
+<script>
+// Load GIS script only if NOT a restricted WebView
+(function() {
+    var ua = navigator.userAgent || '';
+    var isHardWebView = /wv\)/.test(ua) || /FB_IAB|FBAN|FBAV|Instagram/i.test(ua);
+    if (!isHardWebView) {
+        var s = document.createElement('script');
+        s.src = 'https://accounts.google.com/gsi/client';
+        s.async = true; s.defer = true;
+        document.head.appendChild(s);
+    }
+})();
+</script>
 
 <script>
 // =====================================================
@@ -448,33 +460,14 @@ let viewYearOnly = now.getFullYear();
 // =====================================================
 function isWebView() {
     const ua = navigator.userAgent || '';
-    // Common WebView indicators
     if (/wv\)/.test(ua)) return true;
-    if (/Android.*Version\/[\d.]+.*(Chrome\/[\d.]+ Mobile|wv)/.test(ua) && !/Chrome\/[\d.]+ (Mobile )?Safari/.test(ua)) return true;
     if (/FB_IAB|FBAN|FBAV|Instagram|Line\/|Twitter|MicroMessenger/i.test(ua)) return true;
-    // iOS in-app browser
     if (/iPhone|iPad/.test(ua) && !/Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)) return true;
     return false;
 }
 
 function isMobile() {
     return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
-}
-
-function showWebViewWarning() {
-    const auth = document.getElementById('auth-screen');
-    auth.innerHTML = `
-        <div class="auth-logo">⚠️</div>
-        <h1 class="auth-title">Open in Browser</h1>
-        <p class="auth-sub">Google sign-in is blocked inside in-app browsers.</p>
-        <div class="webview-warning">
-            <h3>How to fix:</h3>
-            <p>1. Tap the <strong>menu (⋮)</strong> at the top-right</p>
-            <p>2. Choose <strong>"Open in Chrome"</strong> or <strong>"Open in Browser"</strong></p>
-            <p>3. Sign in there - your data stays safe in your Google Sheet</p>
-        </div>
-        <button class="retry-btn" onclick="copyLinkToClipboard()" style="margin-top:20px;">📋 Copy Link</button>
-    `;
 }
 
 function copyLinkToClipboard() {
@@ -490,6 +483,71 @@ function copyLinkToClipboard() {
 }
 
 // =====================================================
+// REDIRECT-BASED OAUTH (works in WebView APKs)
+// =====================================================
+const REDIRECT_URI = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/') || window.location.origin + '/';
+
+function buildOAuthURL() {
+    const params = new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: window.location.href.split('?')[0].split('#')[0],
+        response_type: 'token',
+        scope: SCOPES,
+        prompt: 'select_account',
+        include_granted_scopes: 'true'
+    });
+    return 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
+}
+
+function handleRedirectToken() {
+    // Parse token from URL hash after redirect
+    const hash = window.location.hash.substring(1);
+    if (!hash) return false;
+    const params = new URLSearchParams(hash);
+    const token = params.get('access_token');
+    const expiresIn = params.get('expires_in');
+    if (!token) return false;
+
+    // Clean URL
+    history.replaceState(null, '', window.location.pathname);
+
+    accessToken = token;
+    localStorage.setItem('et_access_token', token);
+    localStorage.setItem('et_token_expiry', (Date.now() + parseInt(expiresIn || 3600) * 1000).toString());
+    return true;
+}
+
+function showWebViewSignIn() {
+    // For WebView APKs: open OAuth in external Chrome browser via intent URL
+    const auth = document.getElementById('auth-screen');
+    auth.innerHTML = `
+        <div class="auth-logo">💰</div>
+        <h1 class="auth-title">Expense Tracker</h1>
+        <p class="auth-sub">Track your daily & monthly expenses.<br>All data saved to your own <strong>"Expense Tracker"</strong> Google Sheet.</p>
+        <button class="google-btn-manual" onclick="openOAuthExternal()" style="display:flex;margin-top:20px;">
+            <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+            Sign in with Google
+        </button>
+        <p style="margin-top:16px;font-size:12px;color:var(--text-light);max-width:300px;text-align:center;">
+            This will open Google sign-in in your browser. After signing in, come back to the app.
+        </p>
+    `;
+}
+
+function openOAuthExternal() {
+    const oauthUrl = buildOAuthURL();
+    // Try Android intent to force Chrome
+    const intentUrl = 'intent://' + oauthUrl.replace(/^https?:\/\//, '') +
+        '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' +
+        encodeURIComponent(oauthUrl) + ';end';
+    try {
+        window.location.href = intentUrl;
+    } catch(e) {
+        window.open(oauthUrl, '_blank');
+    }
+}
+
+// =====================================================
 // AUTH — Google Identity Services (Mobile-Safe)
 // =====================================================
 let gisRetryCount = 0;
@@ -498,30 +556,18 @@ const GIS_MAX_RETRIES = 30;
 function initGoogleAuth() {
     const statusEl = document.getElementById('auth-status');
 
-    // Check if Google Identity Services loaded
-    if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
-        gisRetryCount++;
-        statusEl.innerHTML = `<div class="auth-spinner"></div>Loading Google services... (${gisRetryCount}/${GIS_MAX_RETRIES})`;
-
-        if (gisRetryCount >= GIS_MAX_RETRIES) {
-            statusEl.className = 'auth-status error';
-            statusEl.innerHTML = `
-                <strong>⚠ Google Sign-In failed to load</strong><br>
-                <small>Check your internet connection</small>
-                <br><button class="retry-btn" onclick="location.reload()">Retry</button>
-            `;
+    // ── Step 0: Check if returning from OAuth redirect ──
+    if (window.location.hash && window.location.hash.includes('access_token')) {
+        if (handleRedirectToken()) {
+            statusEl.innerHTML = '<div class="auth-spinner"></div>Signing in...';
+            completeLoginWithToken();
             return;
         }
-        setTimeout(initGoogleAuth, 500);
-        return;
     }
 
-    gisRetryCount = 0;
-
-    // ── Step 1: Try cached token (auto-login) ──
+    // ── Step 0b: Check cached token (auto-login) ──
     const savedToken = localStorage.getItem('et_access_token');
     const savedExpiry = localStorage.getItem('et_token_expiry');
-
     if (savedToken && savedExpiry && Date.now() < parseInt(savedExpiry)) {
         accessToken = savedToken;
         spreadsheetId = localStorage.getItem('et_spreadsheet_id');
@@ -534,7 +580,35 @@ function initGoogleAuth() {
         return;
     }
 
-    // ── Step 2: Initialize OAuth2 token client ──
+    // ── Step 1: WebView APK — use redirect auth ──
+    if (isWebView()) {
+        showWebViewSignIn();
+        return;
+    }
+
+    // ── Step 2: Real browser — use Google Identity Services ──
+    if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+        gisRetryCount++;
+        statusEl.innerHTML = `<div class="auth-spinner"></div>Loading Google services... (${gisRetryCount}/${GIS_MAX_RETRIES})`;
+
+        if (gisRetryCount >= GIS_MAX_RETRIES) {
+            // GIS failed to load even in browser — fallback to redirect
+            statusEl.className = 'auth-status error';
+            statusEl.innerHTML = `
+                <strong>⚠ Google Sign-In failed to load</strong><br>
+                <small>Check your internet connection</small>
+                <br><button class="retry-btn" onclick="location.reload()">Retry</button>
+                <br><button class="retry-btn" onclick="openOAuthExternal()" style="margin-top:8px;background:#10b981;">Try Direct Login</button>
+            `;
+            return;
+        }
+        setTimeout(initGoogleAuth, 500);
+        return;
+    }
+
+    gisRetryCount = 0;
+
+    // ── Step 3: Initialize OAuth2 token client ──
     try {
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
@@ -550,7 +624,7 @@ function initGoogleAuth() {
         return;
     }
 
-    // ── Step 3: Render Google button (works on all devices) ──
+    // ── Step 4: Render Google button ──
     try {
         google.accounts.id.initialize({
             client_id: GOOGLE_CLIENT_ID,
@@ -563,7 +637,6 @@ function initGoogleAuth() {
 
         const container = document.getElementById('google-signin-container');
         container.innerHTML = '';
-
         const width = Math.min(window.innerWidth - 80, 320);
 
         google.accounts.id.renderButton(container, {
@@ -577,7 +650,6 @@ function initGoogleAuth() {
 
         statusEl.innerHTML = 'Tap the button to sign in';
 
-        // Show fallback manual button after 3 sec if Google button doesn't render
         setTimeout(() => {
             if (!container.querySelector('iframe, div[role="button"]')) {
                 document.getElementById('manual-signin-btn').style.display = 'flex';
@@ -585,11 +657,8 @@ function initGoogleAuth() {
             }
         }, 3000);
 
-        // Try One Tap on desktop only
         if (!isMobile()) {
-            try {
-                google.accounts.id.prompt();
-            } catch(e) {}
+            try { google.accounts.id.prompt(); } catch(e) {}
         }
     } catch (err) {
         console.error('Render button error:', err);
@@ -598,12 +667,32 @@ function initGoogleAuth() {
     }
 }
 
-// Manual sign-in button (fallback)
+// Complete login after redirect token received
+async function completeLoginWithToken() {
+    const statusEl = document.getElementById('auth-status');
+    try {
+        const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (!res.ok) throw new Error('Token invalid');
+        userProfile = await res.json();
+        localStorage.setItem('et_user_profile', JSON.stringify(userProfile));
+        spreadsheetId = localStorage.getItem('et_spreadsheet_id');
+        statusEl.innerHTML = '<div class="auth-spinner"></div>Setting up your spreadsheet...';
+        const wasNew = await setupSpreadsheet();
+        enterApp(wasNew);
+    } catch(e) {
+        statusEl.className = 'auth-status error';
+        statusEl.innerHTML = `Login failed: ${e.message}<br><button class="retry-btn" onclick="location.reload()">Retry</button>`;
+    }
+}
+
+// Manual sign-in button (fallback for desktop)
 function manualSignIn() {
     const statusEl = document.getElementById('auth-status');
     if (!tokenClient) {
-        statusEl.className = 'auth-status error';
-        statusEl.textContent = 'Sign-in not ready. Reload the page.';
+        // Fallback to redirect
+        openOAuthExternal();
         return;
     }
     statusEl.innerHTML = '<div class="auth-spinner"></div>Opening Google sign-in...';
