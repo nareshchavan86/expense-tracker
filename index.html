@@ -498,12 +498,6 @@ const GIS_MAX_RETRIES = 30;
 function initGoogleAuth() {
     const statusEl = document.getElementById('auth-status');
 
-    // Block WebViews early
-    if (isWebView()) {
-        showWebViewWarning();
-        return;
-    }
-
     // Check if Google Identity Services loaded
     if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
         gisRetryCount++;
