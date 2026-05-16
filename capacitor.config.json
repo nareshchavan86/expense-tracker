@@ -1,0 +1,12 @@
+{
+  "appId": "com.naresh.expensetracker",
+  "appName": "Expense Tracker",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "plugins": {
+    "GoogleAuth": {
+      "scopes": ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file"],
+      "serverClientId": "71456914529-dlb2374v8u3fcb9hlmn6oul1v3ou9e95.apps.googleusercontent.com"
+    }
+  }
+}
