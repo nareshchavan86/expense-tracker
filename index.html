@@ -458,12 +458,6 @@ let viewYearOnly = now.getFullYear();
 // =====================================================
 // DETECTION HELPERS
 // =====================================================
-function isMedianApp() {
-    // Median.co injects "median" into the user agent
-    return navigator.userAgent.toLowerCase().indexOf('median') >= 0 ||
-           typeof window.median !== 'undefined' ||
-           typeof window.gonative !== 'undefined';
-}
 function isMobile() {
     return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
 }
@@ -561,8 +555,32 @@ function initGoogleAuth() {
         return;
     }
 
-    // ── C: First time — show login screen ──
+    // ── C: WebView/APK detected — skip GIS popup entirely, go straight to relay ──
+    // Google blocks OAuth popups in Android WebViews. We detect this early
+    // and use the server token-relay flow instead.
+    if (isWebView()) {
+        showOpenInBrowserPrompt();
+        return;
+    }
+
+    // ── D: First time in a real browser — show GIS login screen ──
     showLoginScreen();
+}
+
+// Detect Android/iOS WebView (APK built with Median, Capacitor, etc.)
+function isWebView() {
+    const ua = navigator.userAgent || '';
+    // Median.co / GoNative inject their name into the UA or expose a global
+    if (typeof window.median !== 'undefined') return true;
+    if (typeof window.gonative !== 'undefined') return true;
+    if (ua.toLowerCase().indexOf('median') >= 0) return true;
+    if (ua.toLowerCase().indexOf('gonative') >= 0) return true;
+    // Generic Android WebView detection (no Chrome version string in UA)
+    if (/Android/.test(ua) && /wv\b/.test(ua)) return true;
+    if (/Android/.test(ua) && !/Chrome\/\d/.test(ua)) return true;
+    // iOS WKWebView
+    if (/iPhone|iPad/.test(ua) && !/Safari/.test(ua) && !/CriOS/.test(ua)) return true;
+    return false;
 }
 
 // =====================================================
@@ -747,6 +765,11 @@ function startWebviewPoll(code) {
 // SILENT TOKEN REFRESH (after session restore)
 // =====================================================
 function silentTokenRefresh() {
+    // In WebView/APK, GIS popup won't work — show re-auth prompt using relay
+    if (isWebView()) {
+        showReAuthPrompt();
+        return;
+    }
     if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2 && tokenClient) {
         try { tokenClient.requestAccessToken({ prompt: '' }); return; } catch(e) {}
     }
@@ -764,7 +787,11 @@ function showReAuthPrompt() {
     toast.onclick = () => {
         toast.className = 'toast';
         toast.onclick = null;
-        startGoogleLogin();
+        if (isWebView()) {
+            showOpenInBrowserPrompt();
+        } else {
+            startGoogleLogin();
+        }
     };
     setTimeout(() => { if (toast) { toast.className = 'toast'; toast.onclick = null; } }, 10000);
 }
