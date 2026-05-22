@@ -402,14 +402,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </nav>
 </div>
 
-<!-- GOOGLE IDENTITY SERVICES — loaded only in real browsers -->
+<!-- GOOGLE IDENTITY SERVICES -->
 <script>
-// Always try to load GIS — works in browser and Median.co WebView
 (function() {
     var s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
     s.async = true; s.defer = true;
+    s.onerror = function() { window._gisLoadFailed = true; };
     document.head.appendChild(s);
+    // Fallback: if GIS hasn't loaded after 8s, mark as failed
+    setTimeout(function() {
+        if (typeof google === 'undefined') window._gisLoadFailed = true;
+    }, 8000);
 })();
 </script>
 
@@ -566,7 +570,6 @@ function initGoogleAuth() {
 // =====================================================
 function showLoginScreen() {
     const auth = document.getElementById('auth-screen');
-    const isMedian = isMedianApp();
 
     auth.innerHTML = `
         <div class="auth-logo">💰</div>
@@ -586,27 +589,19 @@ function showLoginScreen() {
         <div id="auth-status" class="auth-status"><div class="auth-spinner"></div></div>
     `;
 
-    // Try to load GIS for popup login
-    if (typeof google !== 'undefined' && google.accounts) {
-        initGISLogin();
-    } else {
-        // GIS not loaded yet — wait for it
-        let tries = 0;
-        const wait = setInterval(() => {
-            tries++;
-            if (typeof google !== 'undefined' && google.accounts) {
-                clearInterval(wait);
-                initGISLogin();
-            } else if (tries >= GIS_MAX_RETRIES) {
-                clearInterval(wait);
-                // Show manual button as fallback
-                const btn = document.getElementById('manual-signin-btn');
-                const st = document.getElementById('auth-status');
-                if (btn) btn.style.display = 'flex';
-                if (st) st.innerHTML = '';
-            }
-        }, 500);
-    }
+    // Wait for GIS to load, then init
+    let tries = 0;
+    const wait = setInterval(() => {
+        tries++;
+        if (typeof google !== 'undefined' && google.accounts) {
+            clearInterval(wait);
+            initGISLogin();
+        } else if (tries >= GIS_MAX_RETRIES || window._gisLoadFailed) {
+            clearInterval(wait);
+            // WebView or network blocked GIS — show Open in Browser prompt
+            showOpenInBrowserPrompt();
+        }
+    }, 500);
 }
 
 function initGISLogin() {
@@ -670,12 +665,53 @@ function startGoogleLogin() {
         try { tokenClient.requestAccessToken({ prompt: 'consent' }); return; } catch(e) {}
     }
 
-    // 2. GIS not available — show error (redirect/implicit flow banned by Google)
-    const statusEl2 = document.getElementById('auth-status');
-    if (statusEl2) { statusEl2.className = 'auth-status error'; statusEl2.innerHTML = 'Google Sign-In failed to load. Please reload and try again.<br><button class="retry-btn" onclick="location.reload()">Reload</button>'; }
+    // 2. GIS not available in WebView — open in real browser
+    showOpenInBrowserPrompt();
 }
 
-function manualSignIn() { startGoogleLogin(); } // startGoogleLogin uses GIS popup only
+function manualSignIn() { startGoogleLogin(); }
+
+// =====================================================
+// WEBVIEW FALLBACK — open app URL in Chrome/Safari
+// =====================================================
+function showOpenInBrowserPrompt() {
+    const auth = document.getElementById('auth-screen');
+    const appUrl = 'https://expense-tracker-1-39kb.onrender.com/';
+    if (!auth) return;
+    auth.innerHTML = `
+        <div class="auth-logo">💰</div>
+        <h1 class="auth-title">Expense Tracker</h1>
+        <p class="auth-sub" style="margin-bottom:16px;">Google Sign-In requires a real browser.<br>Please open this app in <strong>Chrome</strong> or your default browser.</p>
+        <div style="background:#fff;border:2px solid #e2e8f0;border-radius:12px;padding:20px;max-width:320px;text-align:left;">
+            <p style="font-size:13px;font-weight:600;margin-bottom:12px;color:#1e293b;">📋 Option 1 — Copy link &amp; open in Chrome:</p>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+                <input id="app-url-input" type="text" value="${appUrl}" readonly
+                    style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;background:#f8fafc;color:#64748b;">
+                <button onclick="copyAppUrl()" style="padding:8px 12px;background:#6366f1;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Copy</button>
+            </div>
+            <p style="font-size:13px;font-weight:600;margin-bottom:8px;color:#1e293b;">🌐 Option 2 — Open directly:</p>
+            <a href="${appUrl}" target="_blank" rel="noopener"
+                style="display:block;text-align:center;padding:12px;background:#6366f1;color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;">
+                Open in Browser
+            </a>
+        </div>
+        <p style="margin-top:16px;font-size:12px;color:#94a3b8;">After signing in from Chrome, come back here — you'll stay logged in.</p>
+        <button onclick="location.reload()" style="margin-top:12px;padding:8px 20px;background:transparent;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#64748b;cursor:pointer;">Already signed in? Reload</button>
+    `;
+}
+
+function copyAppUrl() {
+    const input = document.getElementById('app-url-input');
+    if (!input) return;
+    try {
+        input.select();
+        document.execCommand('copy');
+        const btn = input.nextElementSibling;
+        if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); }
+    } catch(e) {
+        try { navigator.clipboard.writeText(input.value); } catch(e2) {}
+    }
+}
 
 // =====================================================
 // SILENT TOKEN REFRESH (after session restore)
