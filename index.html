@@ -458,6 +458,12 @@ let viewYearOnly = now.getFullYear();
 // =====================================================
 // DETECTION HELPERS
 // =====================================================
+function isMedianApp() {
+    // Median.co injects "median" into the user agent
+    return navigator.userAgent.toLowerCase().indexOf('median') >= 0 ||
+           typeof window.median !== 'undefined' ||
+           typeof window.gonative !== 'undefined';
+}
 function isMobile() {
     return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
 }
@@ -529,79 +535,18 @@ const GIS_MAX_RETRIES = 20;
 function initGoogleAuth() {
     const statusEl = document.getElementById('auth-status');
 
-    // ── A: Token returned in URL hash (OAuth redirect flow) ──
+    // ── A: Token returned in URL hash (redirect flow) ──
     const hashData = extractTokenFromHash(window.location.hash);
     if (hashData) {
         history.replaceState(null, '', window.location.pathname);
         accessToken = hashData.token;
-
-        // Check if this was a pair-flow redirect (APK sign-in via Chrome)
-        const savedPair = (() => { try { return sessionStorage.getItem('_pairCode'); } catch(e) { return null; } })();
-        const stateParam = new URLSearchParams(window.location.search).get('state');
-        if (savedPair || stateParam === 'pair') {
-            const pairCode = savedPair || '';
-            try { sessionStorage.removeItem('_pairCode'); } catch(e) {}
-            // Show spinner while relaying
-            document.getElementById('auth-screen').innerHTML = `
-                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;">
-                    <div class="auth-spinner"></div>
-                    <p style="margin-top:16px;font-size:14px;color:#64748b;">Completing sign-in…</p>
-                </div>`;
-            // Relay token then show "Open App" button
-            fetch(APP_URL + '/api/token-relay', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: pairCode, token: accessToken, expiresIn: hashData.expiresIn || 3600 })
-            }).then(() => {
-                const deepLink = 'expensetracker://auth?code=' + pairCode;
-                document.body.innerHTML = `
-                    <div style="font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#f1f5f9;text-align:center;padding:24px;">
-                        <div style="font-size:60px;margin-bottom:16px;">✅</div>
-                        <h1 style="font-size:22px;font-weight:800;color:#1e293b;margin-bottom:10px;">Signed in!</h1>
-                        <p style="color:#64748b;font-size:14px;max-width:280px;margin-bottom:28px;line-height:1.6;">
-                            Going back to <strong>Expense Tracker</strong>…
-                        </p>
-                        <a href="${deepLink}"
-                            style="display:inline-flex;align-items:center;gap:10px;padding:16px 36px;background:#6366f1;color:#fff;border-radius:14px;font-size:16px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(99,102,241,0.4);">
-                            📱 Open Expense Tracker
-                        </a>
-                        <p style="margin-top:20px;font-size:12px;color:#94a3b8;">Tap the button if the app doesn't open automatically</p>
-                    </div>`;
-                setTimeout(() => { window.location.href = deepLink; }, 1200);
-            }).catch(() => {
-                // Relay failed — just show the open button anyway, polling will catch it
-                const deepLink = 'expensetracker://auth?code=' + pairCode;
-                document.body.innerHTML = `
-                    <div style="font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#f1f5f9;text-align:center;padding:24px;">
-                        <div style="font-size:60px;margin-bottom:16px;">⚠️</div>
-                        <h1 style="font-size:20px;font-weight:800;color:#1e293b;margin-bottom:10px;">Almost there…</h1>
-                        <p style="color:#64748b;font-size:14px;max-width:280px;margin-bottom:28px;">Tap below to go back to the app.</p>
-                        <a href="${deepLink}" style="display:inline-flex;align-items:center;gap:10px;padding:16px 36px;background:#6366f1;color:#fff;border-radius:14px;font-size:16px;font-weight:700;text-decoration:none;">
-                            📱 Open Expense Tracker
-                        </a>
-                    </div>`;
-                setTimeout(() => { window.location.href = deepLink; }, 1200);
-            });
-            return;
-        }
-
-        // Normal browser login (not pair flow)
         saveSession(hashData.token, hashData.expiresIn, null);
         if (statusEl) statusEl.innerHTML = '<div class="auth-spinner"></div>Signing in...';
         completeLoginWithToken();
         return;
     }
 
-    // ── B: Chrome was opened by the APK with ?pair=CODE — auto sign-in mode ──
-    // This runs in the real Chrome browser, NOT in the WebView.
-    // Show a minimal "Signing you in…" screen and kick off GIS immediately.
-    const pairCode = new URLSearchParams(window.location.search).get('pair');
-    if (pairCode) {
-        showPairSignInScreen(pairCode);
-        return;
-    }
-
-    // ── C: Already logged in (persistent) — skip login screen ──
+    // ── B: Already logged in (persistent) — skip login screen ──
     const sess = loadSession();
     if (sess.loggedIn && sess.profile) {
         try { userProfile = JSON.parse(sess.profile); } catch(e) {}
@@ -616,79 +561,8 @@ function initGoogleAuth() {
         return;
     }
 
-    // ── D: WebView/APK detected — skip GIS popup entirely, go straight to relay ──
-    if (isWebView()) {
-        showOpenInBrowserPrompt();
-        return;
-    }
-
-    // ── E: First time in a real browser — show GIS login screen ──
+    // ── C: First time — show login screen ──
     showLoginScreen();
-}
-
-// =====================================================
-// PAIR SIGN-IN SCREEN (Chrome opened by APK)
-// Uses a direct OAuth2 redirect — no GIS library, no popups, no iframes.
-// Chrome navigates to Google → user signs in → Google redirects back with token in hash.
-// =====================================================
-function showPairSignInScreen(pairCode) {
-    // Store pair code before any redirect
-    try { sessionStorage.setItem('_pairCode', pairCode); } catch(e) {}
-    window._activePairCode = pairCode;
-
-    const auth = document.getElementById('auth-screen');
-    auth.innerHTML = `
-        <div class="auth-logo">💰</div>
-        <h1 class="auth-title">Sign in with Google</h1>
-        <p class="auth-sub" style="margin-bottom:28px;line-height:1.6;">
-            Tap below to sign in.<br>
-            You'll be returned to this page automatically.
-        </p>
-        <button onclick="startOAuthRedirect()"
-            style="display:flex;align-items:center;justify-content:center;gap:12px;padding:16px 32px;background:#fff;border:2px solid #6366f1;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,0.18);max-width:300px;margin:0 auto;color:#1e293b;">
-            <svg width="22" height="22" viewBox="0 0 48 48">
-                <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
-                <path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
-                <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
-                <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
-            </svg>
-            Sign in with Google
-        </button>
-        <div id="auth-status" class="auth-status" style="margin-top:20px;"></div>
-    `;
-}
-
-function startOAuthRedirect() {
-    const statusEl = document.getElementById('auth-status');
-    if (statusEl) statusEl.innerHTML = '<div class="auth-spinner"></div>';
-
-    // OAuth2 implicit grant — Google redirects back to this page with #access_token=...
-    // This is the only flow that works reliably in a plain Chrome tab (no popup needed).
-    const params = new URLSearchParams({
-        client_id:     GOOGLE_CLIENT_ID,
-        redirect_uri:  APP_URL + '/',          // must be in Google Console authorized origins
-        response_type: 'token',
-        scope:         SCOPES,
-        include_granted_scopes: 'true',
-        state:         'pair'                  // so we know this is a pair redirect on return
-    });
-    window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
-}
-
-// Detect Android/iOS WebView (APK built with Median, Capacitor, etc.)
-function isWebView() {
-    const ua = navigator.userAgent || '';
-    // Median.co / GoNative inject their name into the UA or expose a global
-    if (typeof window.median !== 'undefined') return true;
-    if (typeof window.gonative !== 'undefined') return true;
-    if (ua.toLowerCase().indexOf('median') >= 0) return true;
-    if (ua.toLowerCase().indexOf('gonative') >= 0) return true;
-    // Generic Android WebView detection (no Chrome version string in UA)
-    if (/Android/.test(ua) && /wv\b/.test(ua)) return true;
-    if (/Android/.test(ua) && !/Chrome\/\d/.test(ua)) return true;
-    // iOS WKWebView
-    if (/iPhone|iPad/.test(ua) && !/Safari/.test(ua) && !/CriOS/.test(ua)) return true;
-    return false;
 }
 
 // =====================================================
@@ -814,23 +688,16 @@ function showOpenInBrowserPrompt() {
     if (!auth) return;
 
     _webviewPairCode = genPairCode();
-    // Pass both the pair code AND a return deep-link so Chrome can send user back
-    const returnUrl = encodeURIComponent('expensetracker://auth?code=' + _webviewPairCode);
-    const loginUrl  = APP_URL + '/?pair=' + _webviewPairCode + '&return=' + returnUrl;
+    const loginUrl = APP_URL + '/?pair=' + _webviewPairCode;
 
     auth.innerHTML = `
         <div class="auth-logo">💰</div>
         <h1 class="auth-title">Sign In</h1>
-        <p class="auth-sub" style="margin-bottom:24px;">
-            Tap the button below — Google will open in Chrome.<br>
-            <strong>After signing in, tap "Open Expense Tracker"</strong><br>
-            and you'll be brought back automatically.
-        </p>
+        <p class="auth-sub" style="margin-bottom:20px;">Tap the button below to sign in with Google.<br>You'll be brought back automatically.</p>
 
-        <a id="open-browser-btn" href="${loginUrl}" target="_blank" rel="noopener"
-            onclick="onOpenBrowserTapped()"
-            style="display:flex;align-items:center;justify-content:center;gap:12px;padding:16px 28px;background:#fff;border:2px solid #6366f1;border-radius:14px;font-size:16px;font-weight:700;text-decoration:none;color:#1e293b;box-shadow:0 4px 16px rgba(99,102,241,0.18);max-width:300px;margin:0 auto;transition:box-shadow .2s;">
-            <svg width="22" height="22" viewBox="0 0 48 48">
+        <a href="${loginUrl}" target="_blank" rel="noopener"
+            style="display:flex;align-items:center;justify-content:center;gap:12px;padding:14px 28px;background:#fff;border:2px solid #e2e8f0;border-radius:12px;font-size:16px;font-weight:600;text-decoration:none;color:#1e293b;box-shadow:0 2px 8px rgba(0,0,0,0.08);max-width:280px;margin:0 auto;">
+            <svg width="20" height="20" viewBox="0 0 48 48">
                 <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
                 <path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
                 <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
@@ -839,81 +706,27 @@ function showOpenInBrowserPrompt() {
             Sign in with Google
         </a>
 
-        <div id="webview-status" style="margin-top:28px;text-align:center;padding:0 16px;">
-            <div class="auth-spinner" id="relay-spinner"></div>
-            <p style="font-size:13px;color:#64748b;margin-top:10px;" id="relay-msg">Tap the button above to open Chrome</p>
-            <p style="font-size:11px;color:#94a3b8;margin-top:6px;" id="relay-timer"></p>
+        <div id="webview-status" style="margin-top:24px;text-align:center;">
+            <div class="auth-spinner"></div>
+            <p style="font-size:13px;color:#64748b;margin-top:8px;">Waiting for sign-in...</p>
         </div>
     `;
 
-    // Start polling the server for the token (5 min timeout)
+    // Start polling the server for the token
     startWebviewPoll(_webviewPairCode);
-
-    // Also listen for deep-link return via window.location (Median handles this)
-    window._deepLinkHandler = function(url) {
-        try {
-            const u = new URL(url);
-            const code = u.searchParams.get('code');
-            if (code) receiveDeepLinkCode(code);
-        } catch(e) {}
-    };
-    // Median.co deep link bridge
-    if (typeof window.median !== 'undefined' && window.median.deeplink) {
-        window.median.deeplink.listen(window._deepLinkHandler);
-    }
-}
-
-function onOpenBrowserTapped() {
-    const msg = document.getElementById('relay-msg');
-    if (msg) msg.textContent = 'Waiting for you to sign in…';
-}
-
-// Called when deep-link brings user back to app with the pair code
-function receiveDeepLinkCode(code) {
-    // Immediately fetch the token we already relayed
-    fetch(APP_URL + '/api/token-relay?code=' + code.toUpperCase())
-        .then(r => r.json())
-        .then(data => {
-            if (data.token) {
-                clearInterval(_webviewPollTimer);
-                accessToken = data.token;
-                saveSession(data.token, data.expiresIn || 3600, null);
-                const st = document.getElementById('webview-status');
-                if (st) st.innerHTML = '<div class="auth-spinner"></div><p style="font-size:14px;color:#22c55e;margin-top:8px;font-weight:600;">✅ Signed in! Loading your data…</p>';
-                completeLoginWithToken();
-            }
-        }).catch(() => {});
 }
 
 function startWebviewPoll(code) {
     if (_webviewPollTimer) clearInterval(_webviewPollTimer);
     let attempts = 0;
-    const MAX = 300; // 5 minutes (300 seconds)
-
     _webviewPollTimer = setInterval(async () => {
         attempts++;
-
-        // Update countdown timer in UI
-        const remaining = MAX - attempts;
-        const timerEl = document.getElementById('relay-timer');
-        if (timerEl && remaining > 0) {
-            const m = Math.floor(remaining / 60);
-            const s = remaining % 60;
-            timerEl.textContent = `Waiting… ${m}:${s.toString().padStart(2,'0')} remaining`;
-        }
-
-        if (attempts > MAX) {
+        if (attempts > 120) { // 2 min timeout
             clearInterval(_webviewPollTimer);
             const st = document.getElementById('webview-status');
-            if (st) st.innerHTML = `
-                <p style="color:#ef4444;font-size:13px;margin-bottom:12px;">Timed out after 5 minutes.</p>
-                <button onclick="showOpenInBrowserPrompt()"
-                    style="padding:10px 24px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
-                    Try Again
-                </button>`;
+            if (st) st.innerHTML = '<p style="color:#ef4444;font-size:13px;">Timed out. <button onclick="showOpenInBrowserPrompt()" style="color:#6366f1;background:none;border:none;cursor:pointer;font-weight:600;">Try again</button></p>';
             return;
         }
-
         try {
             const res = await fetch(APP_URL + '/api/token-relay?code=' + code);
             if (!res.ok) return;
@@ -923,7 +736,7 @@ function startWebviewPoll(code) {
                 accessToken = data.token;
                 saveSession(data.token, data.expiresIn || 3600, null);
                 const st = document.getElementById('webview-status');
-                if (st) st.innerHTML = '<div class="auth-spinner"></div><p style="font-size:14px;color:#22c55e;margin-top:8px;font-weight:600;">✅ Signed in! Loading your data…</p>';
+                if (st) st.innerHTML = '<div class="auth-spinner"></div><p style="font-size:13px;color:#22c55e;margin-top:8px;">Signed in! Loading...</p>';
                 completeLoginWithToken();
             }
         } catch(e) { /* network hiccup, keep polling */ }
@@ -934,11 +747,6 @@ function startWebviewPoll(code) {
 // SILENT TOKEN REFRESH (after session restore)
 // =====================================================
 function silentTokenRefresh() {
-    // In WebView/APK, GIS popup won't work — show re-auth prompt using relay
-    if (isWebView()) {
-        showReAuthPrompt();
-        return;
-    }
     if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2 && tokenClient) {
         try { tokenClient.requestAccessToken({ prompt: '' }); return; } catch(e) {}
     }
@@ -956,11 +764,7 @@ function showReAuthPrompt() {
     toast.onclick = () => {
         toast.className = 'toast';
         toast.onclick = null;
-        if (isWebView()) {
-            showOpenInBrowserPrompt();
-        } else {
-            startGoogleLogin();
-        }
+        startGoogleLogin();
     };
     setTimeout(() => { if (toast) { toast.className = 'toast'; toast.onclick = null; } }, 10000);
 }
@@ -1053,6 +857,26 @@ async function handleTokenResponse(tokenResponse) {
     accessToken = tokenResponse.access_token;
     const expiresIn = tokenResponse.expires_in || 3600;
     saveSession(accessToken, expiresIn, userProfile);
+
+    // If this is Chrome opened by the WebView, relay the token to the server
+    const pairCode = new URLSearchParams(window.location.search).get('pair');
+    if (pairCode) {
+        try {
+            await fetch('https://expense-tracker-1-39kb.onrender.com/api/token-relay', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: pairCode, token: accessToken, expiresIn })
+            });
+            // Show a "you can go back to the app" message in Chrome
+            document.body.innerHTML = `
+                <div style="font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#f1f5f9;text-align:center;padding:24px;">
+                    <div style="font-size:56px;margin-bottom:16px;">✅</div>
+                    <h1 style="font-size:22px;font-weight:800;color:#1e293b;margin-bottom:8px;">Signed in successfully!</h1>
+                    <p style="color:#64748b;font-size:14px;max-width:280px;">Go back to the Expense Tracker app — it will load automatically.</p>
+                </div>`;
+            return;
+        } catch(e) { /* relay failed — proceed normally */ }
+    }
 
     // If we don't have profile yet, fetch it
     if (!userProfile) {
