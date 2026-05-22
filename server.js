@@ -72,6 +72,41 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: Date.now() });
 });
 
+// ── Token Relay for WebView sign-in ──────────────────────────────────────
+// In-memory store: { CODE -> { token, expiresIn, ts } }
+// Tokens are deleted after first read or after 5 minutes.
+const tokenRelay = new Map();
+
+setInterval(() => {
+    const cutoff = Date.now() - 5 * 60 * 1000;
+    for (const [k, v] of tokenRelay) {
+        if (v.ts < cutoff) tokenRelay.delete(k);
+    }
+}, 60 * 1000);
+
+app.use(express.json());
+
+// Chrome calls this after sign-in to deposit the token
+app.post('/api/token-relay', (req, res) => {
+    const { code, token, expiresIn } = req.body || {};
+    if (!code || !token || typeof code !== 'string' || code.length > 20) {
+        return res.status(400).json({ error: 'Invalid' });
+    }
+    tokenRelay.set(code.toUpperCase(), { token, expiresIn: expiresIn || 3600, ts: Date.now() });
+    res.json({ ok: true });
+});
+
+// WebView polls this every second waiting for its token
+app.get('/api/token-relay', (req, res) => {
+    const code = (req.query.code || '').toUpperCase();
+    if (!code) return res.status(400).json({ error: 'No code' });
+    const entry = tokenRelay.get(code);
+    if (!entry) return res.status(404).json({ waiting: true });
+    tokenRelay.delete(code); // one-time read
+    res.json({ token: entry.token, expiresIn: entry.expiresIn });
+});
+// ─────────────────────────────────────────────────────────────────────────
+
 // SPA fallback
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
