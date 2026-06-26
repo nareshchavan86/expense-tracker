@@ -1,0 +1,6 @@
+@OttPlatform.API_HostAddress = http://localhost:5042
+
+GET {{OttPlatform.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
