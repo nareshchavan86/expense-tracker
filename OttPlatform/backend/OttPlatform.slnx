@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="OttPlatform.API/OttPlatform.API.csproj" />
+  <Project Path="OttPlatform.Application/OttPlatform.Application.csproj" />
+  <Project Path="OttPlatform.Core/OttPlatform.Core.csproj" />
+  <Project Path="OttPlatform.Infrastructure/OttPlatform.Infrastructure.csproj" />
+</Solution>
